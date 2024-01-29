@@ -125,9 +125,28 @@ export function setExcludedArchitectures(project: XcodeProject): XcodeProject {
       typeof buildSettings?.PRODUCT_NAME !== 'undefined'
     ) {
       buildSettings['"EXCLUDED_ARCHS[sdk=iphonesimulator*]"'] = '"arm64"';
+
+      /**
+       * Delete Duplicate Signature File
+       * https://github.com/CocoaPods/CocoaPods/issues/12022
+       */
+      const shellScript = `if [ "$XCODE_VERSION_MAJOR" = "1500" ]; then
+      echo "Remove signature files (Xcode 15 workaround)";
+      rm -rf "$BUILD_DIR/Release-iphoneos/Mapbox.xcframework-ios.signature";
+      fi`;
+
+      project.addBuildPhase(
+        [],
+        'PBXShellScriptBuildPhase',
+        'Remove signature files (Xcode 15 workaround)',
+        null,
+        {
+          shellPath: '/bin/sh',
+          shellScript,
+        },
+      );
     }
   }
-
   return project;
 }
 
