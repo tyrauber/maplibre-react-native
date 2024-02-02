@@ -119,4 +119,4 @@ coverage
 *.iml
 
 # Config plugin
-/plugin/build
+# /plugin/build
