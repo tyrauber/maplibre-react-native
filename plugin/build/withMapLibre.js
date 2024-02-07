@@ -107,6 +107,20 @@ function setExcludedArchitectures(project) {
     return project;
 }
 exports.setExcludedArchitectures = setExcludedArchitectures;
+const withoutSignatures = config => {
+    const shellScript = `if [ "$XCODE_VERSION_MAJOR" = "1500" ]; then
+    echo "Remove signature files (Xcode 15 workaround)";
+    rm -rf "$CONFIGURATION_BUILD_DIR/Mapbox.xcframework-ios.signature";
+  fi`;
+    return (0, config_plugins_1.withXcodeProject)(config, async (config) => {
+        const xcodeProject = config.modResults;
+        xcodeProject.addBuildPhase([], 'PBXShellScriptBuildPhase', 'Remove signature files (Xcode 15 workaround)', null, {
+            shellPath: '/bin/sh',
+            shellScript,
+        });
+        return config;
+    });
+};
 const withExcludedSimulatorArchitectures = c => {
     return (0, config_plugins_1.withXcodeProject)(c, config => {
         config.modResults = setExcludedArchitectures(config.modResults);
@@ -114,7 +128,7 @@ const withExcludedSimulatorArchitectures = c => {
     });
 };
 const withMapLibre = config => {
-    config = withExcludedSimulatorArchitectures(config);
+    config = withoutSignatures(withExcludedSimulatorArchitectures(config));
     return withCocoaPodsInstallerBlocks(config);
 };
 exports.default = (0, config_plugins_1.createRunOncePlugin)(withMapLibre, pkg.name, pkg.version);
