@@ -17,15 +17,13 @@ jobs:
         working-directory: ./example
 
     steps:
-      - name: Free Disk Space (Ubuntu)
-        uses: jlumbroso/free-disk-space@main
-        with:
-          tool-cache: false
-          android: true
-          dotnet: true
-          haskell: true
-          large-packages: true
-          swap-storage: true
+      - name: Free Disk Space (macOS)
+        run: |
+          sudo rm -rf /Library/Developer/CoreSimulator/Profiles/Runtimes/
+          sudo rm -rf /Users/runner/Library/Developer/Xcode/DerivedData/*
+          sudo rm -rf /Users/runner/Library/Caches/
+          df -h
+
       - name: Checkout
         uses: actions/checkout@v4
 
