@@ -1,0 +1,15 @@
+appId: com.rnmaplibreexample
+---
+- "launchApp"
+# - "clearState"
+- assertVisible: "React Native Mapbox GL"
+# - tapOn: "While using the app"
+- tapOn: "Map, "
+- tapOn: "Show Map, "
+- tapOn:
+    point: "50%,50%"
+- assertVisible: "You pressed on the user location annotation"
+- tapOn: "OK"
+- tapOn:
+    id: "iconIcon"
+- tapOn: ""

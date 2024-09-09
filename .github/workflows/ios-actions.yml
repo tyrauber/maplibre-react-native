@@ -34,13 +34,13 @@ jobs:
       - name: Install Pod Dependencies
         run: cd ios && pod --version && pod install
 
-      - name: Install Detox Dependencies
-        run: |
-          brew tap wix/brew
-          brew install applesimutils
+      - uses: futureware-tech/simulator-action@v2
+        with:
+          model: "iPhone 14 Pro"
 
-      - name: Build for detox
-        run: yarn detox build -c ios.sim.release
-
-      - name: Test with detox
-        run: yarn detox test --debug-synchronization 200 -c ios.sim.release
+      - uses: dniHze/maestro-test-action@v1
+        with:
+          flow: .maestro
+          report: report.xml
+        env:
+          MAESTRO_CLI_NO_ANALYTICS: true

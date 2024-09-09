@@ -33,3 +33,14 @@ jobs:
 
       - run: ./gradlew assemble
         working-directory: packages/react-native-app/android
+
+      - uses: dniHze/maestro-test-action@v1
+      - uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          arch: x86_64
+          ram-size: 2048M
+          target: default
+          script: maestro test --format=junit --output=report.xml --no-ansi .maestro
+        env:
+          MAESTRO_CLI_NO_ANALYTICS: true
