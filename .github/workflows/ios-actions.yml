@@ -34,9 +34,9 @@ jobs:
       - name: Install Pod Dependencies
         run: cd ios && pod --version && pod install
 
-      - uses: futureware-tech/simulator-action@v2
+      - uses: futureware-tech/simulator-action@v3
         with:
-          model: "iPhone 14 Pro"
+          model: "iPhone 15"
 
       - uses: dniHze/maestro-test-action@v1
         with:
@@ -44,3 +44,4 @@ jobs:
           report: report.xml
         env:
           MAESTRO_CLI_NO_ANALYTICS: true
+          MAESTRO_DRIVER_STARTUP_TIMEOUT: 60000
