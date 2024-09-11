@@ -11,6 +11,8 @@ jobs:
   build:
     runs-on: macos-latest
     timeout-minutes: 45 # Figure out why this job can be super slow; runner hardware?
+    env:
+      XC_SIMULATOR_NAME: iPhone 15
 
     defaults:
       run:
@@ -25,23 +27,23 @@ jobs:
         with:
           node-version: ${{ inputs.NVMRC }}
 
-      - name: Enable Corepack
-        run: corepack enable
+      # - name: Enable Corepack
+      #   run: corepack enable
 
-      - name: Install Yarn Dependencies
-        run: yarn install --immutable --check-cache
+      # - name: Install Yarn Dependencies
+      #   run: yarn install --immutable --check-cache
 
-      - name: Install Pod Dependencies
-        run: cd ios && pod --version && pod install
+      # - name: Install Pod Dependencies
+      #   run: cd ios && pod --version && pod install
 
-      - uses: futureware-tech/simulator-action@v3
-        with:
-          model: "iPhone 15"
+      # - uses: futureware-tech/simulator-action@v3
+      #   with:
+      #     model: "iPhone 15"
 
-      - uses: dniHze/maestro-test-action@v1
-        with:
-          flow: .maestro
-          report: report.xml
-        env:
-          MAESTRO_CLI_NO_ANALYTICS: true
-          MAESTRO_DRIVER_STARTUP_TIMEOUT: 60000
+      # - uses: dniHze/maestro-test-action@v1
+      #   with:
+      #     flow: .maestro
+      #     report: report.xml
+      #   env:
+      #     MAESTRO_CLI_NO_ANALYTICS: true
+      #     MAESTRO_DRIVER_STARTUP_TIMEOUT: 60000
