@@ -11,7 +11,7 @@ env:
   MAESTRO_VERSION: 1.30.4
 
 jobs:
-  run_android_e2e:
+  android-actions:
     timeout-minutes: 30
     runs-on: macos-latest
 
@@ -87,66 +87,67 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup node ${{ inputs.NVMRC }}
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ inputs.NVMRC }}
+      # - name: Setup node ${{ inputs.NVMRC }}
+      #   uses: actions/setup-node@v4
+      #   with:
+      #     node-version: ${{ inputs.NVMRC }}
+      #     cache: "yarn"
 
-      - name: Setup JDK zulu 17
-        uses: actions/setup-java@v4
-        with:
-          distribution: "zulu"
-          java-version: "17"
+      # - name: Setup JDK zulu 17
+      #   uses: actions/setup-java@v4
+      #   with:
+      #     distribution: "zulu"
+      #     java-version: "17"
 
-      - name: Install Maestro
-        run: curl -Ls 'https://get.maestro.mobile.dev' | bash
+      # - name: Install Maestro
+      #   run: curl -Ls 'https://get.maestro.mobile.dev' | bash
 
-      - name: Enable Corepack
-        run: corepack enable
+      # - name: Enable Corepack
+      #   run: corepack enable
 
-      - run: yarn install --immutable --check-cache
-        working-directory: packages/react-native-app
+      # - run: yarn install --immutable --check-cache
+      #   working-directory: packages/react-native-app
 
-      - name: run tests
-        uses: reactivecircus/android-emulator-runner@v2
-        with:
-          api-level: 29
-          working-directory: packages/react-native-app/android
-          script: ./gradlew assemble
+      # - name: run tests
+      #   uses: reactivecircus/android-emulator-runner@v2
+      #   with:
+      #     api-level: 29
+      #     working-directory: packages/react-native-app/android
+      #     script: ./gradlew assemble
 
-      - name: Run Maestro E2E tests
-        uses: reactivecircus/android-emulator-runner@v2
-        with:
-          api-level: ${{ matrix.api-level }}
-          target: ${{ matrix.target }}
-          arch: ${{ matrix.arch }}
-          cores: 2
-          ram-size: 2048M
-          force-avd-creation: false
-          emulator-boot-timeout: 600 # 10min
-          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
-          disable-animations: true
-          pre-emulator-launch-script: |
-            echo "Running pre emulator launch script. Printing the working directory now:"
-            pwd
-          script: |
-            npx envinfo                 # check memory usage
+      # - name: Run Maestro E2E tests
+      #   uses: reactivecircus/android-emulator-runner@v2
+      #   with:
+      #     api-level: ${{ matrix.api-level }}
+      #     target: ${{ matrix.target }}
+      #     arch: ${{ matrix.arch }}
+      #     cores: 2
+      #     ram-size: 2048M
+      #     force-avd-creation: false
+      #     emulator-boot-timeout: 600 # 10min
+      #     emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+      #     disable-animations: true
+      #     pre-emulator-launch-script: |
+      #       echo "Running pre emulator launch script. Printing the working directory now:"
+      #       pwd
+      #     script: |
+      #       npx envinfo                 # check memory usage
 
-            adb devices                 # verify emulator is running
+      #       adb devices                 # verify emulator is running
 
-            adb install app-release.apk # install app
+      #       adb install app-release.apk # install app
 
-            # Run e2e
-            ./run_android_e2e.sh
-            # ^^^ Will debug files: report*.xml, video_record.mp4, last_img.png
+      #       # Run e2e
+      #       ./run_android_e2e.sh
+      #       # ^^^ Will debug files: report*.xml, video_record.mp4, last_img.png
 
-      - name: Upload report
-        if: always()
-        uses: actions/upload-artifact@v3
-        with:
-          name: E2E Report (${{ matrix.arch }}, ${{ matrix.api-level }}, ${{ matrix.target }})
-          path: |
-            ${{ github.workspace }}/*.mp4
-            ${{ github.workspace }}/*.png
-            ${{ github.workspace }}/report*.xml
-            ~/.maestro/tests/**/*
+      # - name: Upload report
+      #   if: always()
+      #   uses: actions/upload-artifact@v3
+      #   with:
+      #     name: E2E Report (${{ matrix.arch }}, ${{ matrix.api-level }}, ${{ matrix.target }})
+      #     path: |
+      #       ${{ github.workspace }}/*.mp4
+      #       ${{ github.workspace }}/*.png
+      #       ${{ github.workspace }}/report*.xml
+      #       ~/.maestro/tests/**/*

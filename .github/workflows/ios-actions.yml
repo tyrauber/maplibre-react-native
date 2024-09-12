@@ -8,9 +8,9 @@ on:
         type: string
 
 jobs:
-  build:
+  ios-actions:
     runs-on: macos-latest
-    timeout-minutes: 45 # Figure out why this job can be super slow; runner hardware?
+    timeout-minutes: 45
     env:
       XC_SIMULATOR_NAME: iPhone 15
 
@@ -27,23 +27,36 @@ jobs:
         with:
           node-version: ${{ inputs.NVMRC }}
 
-      # - name: Enable Corepack
-      #   run: corepack enable
+      - name: Enable Corepack
+        run: corepack enable
 
-      # - name: Install Yarn Dependencies
-      #   run: yarn install --immutable --check-cache
+      - name: Install Yarn Dependencies
+        run: yarn install --immutable --check-cache
 
-      # - name: Install Pod Dependencies
-      #   run: cd ios && pod --version && pod install
+      - name: Install Pod Dependencies
+        run: cd ios && pod --version && pod install
 
-      # - uses: futureware-tech/simulator-action@v3
-      #   with:
-      #     model: "iPhone 15"
+      - uses: futureware-tech/simulator-action@v3
+        with:
+          model: ${{ env.XC_SIMULATOR_NAME }}
 
-      # - uses: dniHze/maestro-test-action@v1
-      #   with:
-      #     flow: .maestro
-      #     report: report.xml
-      #   env:
-      #     MAESTRO_CLI_NO_ANALYTICS: true
-      #     MAESTRO_DRIVER_STARTUP_TIMEOUT: 60000
+      - name: Build and Install React Native iOS App
+        uses: sparkfabrik/ios-build-action@v2.3.0
+        with:
+          project-path: ios/RNMaplibreExample.xcodeproj
+          workspace-path: ios/RNMaplibreExample.xcworkspace
+          scheme: RNMaplibreExample
+          configuration: Release
+          export-method: development
+          output-path: RNMaplibreExample.ipa
+          # build-pods: true
+          # pods-path: Podfile
+
+      - uses: dniHze/maestro-test-action@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          MAESTRO_CLI_NO_ANALYTICS: true
+          MAESTRO_DRIVER_STARTUP_TIMEOUT: 60000
+        with:
+          flow: .maestro
+          report: report.xml
