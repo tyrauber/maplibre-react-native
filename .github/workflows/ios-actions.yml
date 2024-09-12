@@ -7,25 +7,37 @@ on:
         required: true
         type: string
 
+defaults:
+  run:
+    working-directory: ./packages/react-native-app
+
 jobs:
   ios-actions:
+    name: E2E test
     runs-on: macos-latest
-    timeout-minutes: 45
     env:
-      XC_SIMULATOR_NAME: iPhone 15
-
-    defaults:
-      run:
-        working-directory: ./packages/react-native-app
+      XWORKSPACE: RNMaplibreExample
+      SCHEME: RNMaplibreExample
+      APPNAME: RNMaplibreExample
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v3
 
-      - name: Setup node ${{ inputs.NVMRC }}
-        uses: actions/setup-node@v4
+      - name: Setup Node
+        uses: actions/setup-node@v3
         with:
           node-version: ${{ inputs.NVMRC }}
+
+      - name: Install IDB
+        run: |
+          brew tap facebook/fb
+          brew install idb-companion
+
+      - name: Install Maestro
+        run: |
+          curl -Ls "https://get.maestro.mobile.dev" | bash
+          echo "$HOME/.maestro/bin" >> $GITHUB_PATH
 
       - name: Enable Corepack
         run: corepack enable
@@ -36,27 +48,26 @@ jobs:
       - name: Install Pod Dependencies
         run: cd ios && pod --version && pod install
 
-      - uses: futureware-tech/simulator-action@v3
-        with:
-          model: ${{ env.XC_SIMULATOR_NAME }}
-
-      - name: Build and Install React Native iOS App
-        uses: sparkfabrik/ios-build-action@v2.3.0
-        with:
-          project-path: ios/RNMaplibreExample.xcodeproj
-          workspace-path: ios/RNMaplibreExample.xcworkspace
-          scheme: RNMaplibreExample
-          configuration: Release
-          export-method: development
-          output-path: RNMaplibreExample.ipa
-          # build-pods: true
-          # pods-path: Podfile
-
-      - uses: dniHze/maestro-test-action@v1
+      - name: Build & install app
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          MAESTRO_CLI_NO_ANALYTICS: true
-          MAESTRO_DRIVER_STARTUP_TIMEOUT: 60000
+          XWORKSPACE: ${{ env.XWORKSPACE }}
+          SCHEME: ${{ env.SCHEME }}
+          APPNAME: ${{ env.APPNAME }}
+        run: |
+          gem install xcpretty
+          xcodebuild -workspace ios/$XWORKSPACE.xcworkspace -configuration Release -sdk iphonesimulator -derivedDataPath ios/build -scheme $SCHEME CONFIGURATION_BUILD_DIR=ios/build/Release-iphonesimulator PRODUCT_NAME=$APPNAME -UseModernBuildSystem=YES ONLY_ACTIVE_ARCH=NO | xcpretty
+          open -a Simulator
+          sleep 10
+          xcrun simctl install booted ios/build/Release-iphonesimulator/$APPNAME.app
+
+      - name: Run Maestro
+        run: maestro test e2e
+        env:
+          MAESTRO_DRIVER_STARTUP_TIMEOUT: 100000
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v3
+        if: always()
         with:
-          flow: .maestro
-          report: report.xml
+          name: results
+          path: ~/.maestro/tests
