@@ -26,5 +26,19 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   plugins: [
     ["expo-dev-launcher", { launchMode: "most-recent" }],
     "@maplibre/maplibre-react-native",
+    [
+      "expo-build-properties",
+      {
+        ios: {
+          deploymentTarget: "15.1",
+          hermesEnabled: true,
+          newArchEnabled: true,
+        },
+        android: {
+          hermesEnabled: true,
+          newArchEnabled: true,
+        },
+      },
+    ],
   ],
 });
