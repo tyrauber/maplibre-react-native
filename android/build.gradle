@@ -2,33 +2,70 @@
 
 buildscript {
     ext {
-        buildToolsVersion = "33.0.0"
-        minSdkVersion = 16
-        compileSdkVersion = 34
-        targetSdkVersion = 33
-        supportLibVersion = "28.0.0"
+        buildToolsVersion = '35.0.0'
+        minSdkVersion = 24
+        compileSdkVersion = 35
+        targetSdkVersion = 34
+        kotlinVersion = '1.9.24'
+        androidGradlePluginVersion = '8.6.0'
+
+        ndkVersion = "26.1.10909125"
     }
     repositories {
         google()
-        jcenter()
+        mavenCentral()
     }
     dependencies {
-        classpath 'com.android.tools.build:gradle'
+        classpath "com.android.tools.build:gradle:${androidGradlePluginVersion}"
 
         // NOTE: Do not place your application dependencies here; they belong
         // in the individual module build.gradle files
     }
 }
 
+apply plugin: 'com.android.library'
+apply plugin: 'kotlin-android'
+
+android {
+    namespace "com.maplibre.rctmln"
+    compileSdkVersion project.ext.compileSdkVersion
+    buildToolsVersion project.ext.buildToolsVersion
+
+    defaultConfig {
+        minSdkVersion project.ext.minSdkVersion
+        targetSdkVersion project.ext.targetSdkVersion
+
+        buildConfigField "boolean", "IS_NEW_ARCHITECTURE_ENABLED", "false"
+    }
+
+    sourceSets {
+        main {
+            java {
+                srcDirs = ['rctmln/src/main/java']
+            }
+            res {
+                srcDirs = ['rctmln/src/main/res']
+            }
+        }
+    }
+}
+
 allprojects {
     repositories {
-        mavenLocal()
         google()
-        jcenter()
-        maven { url "https://jitpack.io" }
+        mavenCentral()
         maven {
             // All of React Native (JS, Obj-C sources, Android binaries) is installed from npm
             url "$rootDir/../node_modules/react-native/android"
         }
     }
+}
+
+dependencies {
+    implementation "com.facebook.react:react-native:+"
+    implementation 'org.maplibre.gl:android-sdk:11.6.1'
+    implementation 'org.maplibre.gl:android-sdk-turf:6.0.1'
+    implementation 'org.maplibre.gl:android-plugin-localization-v9:3.0.2'
+    implementation 'org.maplibre.gl:android-plugin-annotation-v9:3.0.2'
+    implementation 'org.maplibre.gl:android-plugin-markerview-v9:3.0.2'
 }
