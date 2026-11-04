@@ -316,6 +316,10 @@ const Examples = new ExampleGroup(
       new ExampleItem("Transform URL", MapLibreExamples.TransformUrl),
       new ExampleItem("Headers", MapLibreExamples.Headers),
     ]),
+
+    new ExampleGroup("Native FFI (experimental)", [
+      new ExampleItem("Runtime", MapLibreExamples.NativeFFIRuntime),
+    ]),
   ],
   true,
 );

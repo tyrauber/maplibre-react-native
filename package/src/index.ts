@@ -143,6 +143,8 @@ export {
 
 export { LogManager, type LogLevel } from "./modules/log/LogManager";
 
+export { NativeFFIManager } from "./modules/native-ffi/NativeFFIManager";
+
 export { NetworkManager } from "./modules/network/NetworkManager";
 
 export {

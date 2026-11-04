@@ -40,4 +40,16 @@ cp "$native"/hermes/{module.cpp,module.h,shim.cpp,shim.h,symbols.h} "$vendor/her
 cp "$napi"/*.h "$vendor/node-api-headers/"
 printf '%s %s\n' "$(git -C "$ffi" rev-parse HEAD)" "$preset" > "$vendor/SOURCE"
 
+# The JavaScript side, bundled as npm ships it (bindings/typescript/scripts/
+# pack.ts), into build/dist of the checkout, where Metro looks for it.
+if ! pack_output="$(
+  cd "$ffi/bindings/typescript" &&
+    mise exec -- pnpm exec vp pack src/index.ts src/browser.ts src/hermes.ts \
+      --no-config --platform neutral --target es2021 --fixed-extension \
+      --out-dir build/dist 2>&1
+)"; then
+  echo "$pack_output" >&2
+  exit 1
+fi
+
 echo "Staged $preset from $ffi at $(cut -d' ' -f1 "$vendor/SOURCE")"
