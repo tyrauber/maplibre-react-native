@@ -21,9 +21,13 @@ const nativeFfiStub = path.join(
  * @param {import("metro-config").MetroConfig} config
  * @param {object} options
  * @param {string} options.project
+ * @param {boolean} [options.nativeFfi] - Resolve @maplibre/native-ffi-react-native
+ *   to the checkout, for an app that compiles it (see babel.shared.js). Other
+ *   apps get the stub.
  * @returns {import("metro-config").MetroConfig}
  */
-function withMetroShared(config, { project }) {
+function withMetroShared(config, { project, nativeFfi: useNativeFfi = false }) {
+  const ffi = useNativeFfi && nativeFfi.available;
   const metroConfig = wrapWithReanimatedMetroConfig(
     withMetroConfig(config, {
       root,
@@ -38,7 +42,7 @@ function withMetroShared(config, { project }) {
 
   return {
     ...metroConfig,
-    watchFolders: nativeFfi.available
+    watchFolders: ffi
       ? [
           ...(metroConfig.watchFolders ?? []),
           path.join(nativeFfi.binding, "src"),
@@ -55,10 +59,10 @@ function withMetroShared(config, { project }) {
         if (moduleName === "@maplibre/native-ffi-react-native") {
           return {
             type: "sourceFile",
-            filePath: nativeFfi.available ? nativeFfi.entry : nativeFfiStub,
+            filePath: ffi ? nativeFfi.entry : nativeFfiStub,
           };
         }
-        if (moduleName === "@maplibre/native-ffi/hermes") {
+        if (ffi && moduleName === "@maplibre/native-ffi/hermes") {
           return {
             type: "sourceFile",
             filePath: path.join(nativeFfi.binding, "src", "hermes.ts"),
@@ -67,7 +71,7 @@ function withMetroShared(config, { project }) {
         // The checkout's own node_modules hold its React Native version. React
         // Native, React and Babel's helpers come from the app instead.
         if (
-          nativeFfi.available &&
+          ffi &&
           !moduleName.startsWith(".") &&
           context.originModulePath.startsWith(nativeFfi.binding + path.sep)
         ) {

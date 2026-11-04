@@ -1,5 +1,11 @@
 import { type ComponentType, useEffect, useState } from "react";
-import { StyleSheet, Text, View, type ViewProps } from "react-native";
+import {
+  StyleSheet,
+  Text,
+  TurboModuleRegistry,
+  View,
+  type ViewProps,
+} from "react-native";
 
 import type {
   MapController as MapControllerClass,
@@ -9,9 +15,8 @@ import type { mapGestures as mapGesturesFunction } from "./gestures";
 
 // Experimental: a map drawn through the MapLibre Native C API, with the React
 // Native package and example controller from maplibre-native-ffi. Loading the
-// package installs the binding, and throws when the app does not link it, so the
-// screen loads it on first render. Link it with MLRN_FFI=1 (see
-// react-native-app/react-native.config.js).
+// package installs the binding, so the screen loads it on first render. Link it
+// with MLRN_FFI=1 (see react-native-app/react-native.config.js).
 
 // The package's MaplibreSurfaceView props, which the type checker cannot see
 // (see native-ffi-react-native.d.ts).
@@ -29,17 +34,22 @@ interface Loaded {
   mapGestures: typeof mapGesturesFunction;
 }
 
+// Metro reports a module that throws while it loads as a fatal error, which no
+// catch sees. So the screen checks for the native module, whose absence makes
+// the package throw, and for Metro's stub, before it loads anything.
 function load(): Loaded | Error {
-  try {
-    return {
-      MaplibreSurfaceView: require("@maplibre/native-ffi-react-native")
-        .MaplibreSurfaceView,
-      MapController: require("./MapController").MapController,
-      mapGestures: require("./gestures").mapGestures,
-    };
-  } catch (error) {
-    return error instanceof Error ? error : new Error(String(error));
+  if (TurboModuleRegistry.get("MaplibreNativeFfi") === null) {
+    return new Error("the app does not link @maplibre/native-ffi-react-native");
   }
+  const nativeFfi = require("@maplibre/native-ffi-react-native");
+  if (typeof nativeFfi.unavailable === "string") {
+    return new Error(nativeFfi.unavailable);
+  }
+  return {
+    MaplibreSurfaceView: nativeFfi.MaplibreSurfaceView,
+    MapController: require("./MapController").MapController,
+    mapGestures: require("./gestures").mapGestures,
+  };
 }
 
 function log(status: Status): void {
