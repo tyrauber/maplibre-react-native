@@ -26,6 +26,8 @@ Pod::Spec.new do |s|
   s.pod_target_xcconfig = {
     "CLANG_CXX_LANGUAGE_STANDARD" => "c++20",
     "HEADER_SEARCH_PATHS" => [
+      # MLRNFFIImplementation.h, which stage.sh writes.
+      "\"$(PODS_TARGET_SRCROOT)/#{vendor}\"",
       "\"$(PODS_TARGET_SRCROOT)/#{vendor}/hermes\"",
       "\"$(PODS_TARGET_SRCROOT)/#{vendor}/include\"",
       "\"$(PODS_TARGET_SRCROOT)/#{vendor}/node-api-headers\"",

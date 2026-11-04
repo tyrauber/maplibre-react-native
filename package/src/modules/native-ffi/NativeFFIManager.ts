@@ -1,3 +1,7 @@
+import {
+  MetalLayerLease,
+  type MetalLayerLeaseSession,
+} from "./MetalLayerLease";
 import NativeFFIModule from "./NativeFFIModule";
 
 /**
@@ -15,5 +19,29 @@ export const NativeFFIManager = {
    */
   install(): boolean {
     return NativeFFIModule?.install() ?? false;
+  },
+
+  /**
+   * The engine that the C library was built with, such as "maplibre-native".
+   *
+   * @returns undefined when the app does not link the MapLibreReactNativeFFI pod
+   */
+  implementation(): string | undefined {
+    return NativeFFIModule?.implementation();
+  },
+
+  /**
+   * Takes the layer of a `NativeFFISurface` `onLayer` event. Attach the render
+   * session with the lease, and end the lease to close the session: it releases
+   * the layer only after the close settles.
+   *
+   * @param layer - The event's `layer`
+   */
+  leaseLayer<Session extends MetalLayerLeaseSession = MetalLayerLeaseSession>(
+    layer: string,
+  ): MetalLayerLease<Session> {
+    return new MetalLayerLease<Session>(layer, (released) =>
+      NativeFFIModule?.releaseLayer(released),
+    );
   },
 };

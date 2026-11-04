@@ -21,6 +21,7 @@ for required in \
   "$install/Frameworks/MaplibreNativeC.framework" \
   "$install/include/maplibre_native_c.h" \
   "$native/hermes/module.h" \
+  "$ffi/build/$preset/CMakeCache.txt" \
   "$napi/node_api.h"; do
   if [ ! -e "$required" ]; then
     echo "stage.sh: missing $required" >&2
@@ -39,6 +40,16 @@ cp "$native"/{generated_addon.c,generated_addon.h,generated_values.c,mutex.h,rea
 cp "$native"/hermes/{module.cpp,module.h,shim.cpp,shim.h,symbols.h} "$vendor/hermes/"
 cp "$napi"/*.h "$vendor/node-api-headers/"
 printf '%s %s\n' "$(git -C "$ffi" rev-parse HEAD)" "$preset" > "$vendor/SOURCE"
+
+# The engine the library was built with, which MLRNFFIModule.implementation()
+# reports.
+implementation="$(sed -n 's/^MLN_FFI_IMPLEMENTATION:STRING=//p' "$ffi/build/$preset/CMakeCache.txt")"
+if [ -z "$implementation" ]; then
+  echo "stage.sh: no MLN_FFI_IMPLEMENTATION in $ffi/build/$preset/CMakeCache.txt" >&2
+  exit 1
+fi
+printf '#define MLRN_FFI_IMPLEMENTATION "%s"\n' "$implementation" \
+  > "$vendor/MLRNFFIImplementation.h"
 
 # The JavaScript side, bundled as npm ships it (bindings/typescript/scripts/
 # pack.ts), into build/dist of the checkout, where Metro looks for it.
