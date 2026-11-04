@@ -3,6 +3,7 @@ import {
   type MetalLayerLeaseSession,
 } from "./MetalLayerLease";
 import NativeFFIModule from "./NativeFFIModule";
+import type { NativeFFISurfaceLayerEvent } from "./NativeFFISurface";
 
 /**
  * Experimental: the MapLibre Native C API, through the Hermes binding that
@@ -10,7 +11,9 @@ import NativeFFIModule from "./NativeFFIModule";
  */
 export const NativeFFIManager = {
   /**
-   * Installs the C API bindings into this runtime, on the first call.
+   * Whether the C API bindings are installed in this runtime. Native code
+   * installs them when it creates the module, which happens when this package
+   * loads, so this call only reports it.
    *
    * Import `@maplibre/native-ffi/hermes` only after this returns true. It reads
    * the bindings when it loads, and throws if they are missing.
@@ -31,17 +34,24 @@ export const NativeFFIManager = {
   },
 
   /**
-   * Takes the layer of a `NativeFFISurface` `onLayer` event. Attach the render
-   * session with the lease, and end the lease to close the session: it releases
-   * the layer only after the close settles.
+   * Takes a new hold on the layer of the surface that sent a `NativeFFISurface`
+   * `onLayer` event. Attach the render session with the lease, and end the lease
+   * to close the session: it releases its hold only after the close settles.
+   * Every call takes its own hold.
    *
-   * @param layer - The event's `layer`
+   * @param event - The `onLayer` event, or its `surface`
+   * @returns undefined when the surface is no longer mounted, or the app does not link the MapLibreReactNativeFFI pod
    */
   leaseLayer<Session extends MetalLayerLeaseSession = MetalLayerLeaseSession>(
-    layer: string,
-  ): MetalLayerLease<Session> {
-    return new MetalLayerLease<Session>(layer, (released) =>
-      NativeFFIModule?.releaseLayer(released),
+    event: Pick<NativeFFISurfaceLayerEvent, "surface">,
+  ): MetalLayerLease<Session> | undefined {
+    const native = NativeFFIModule;
+    const leased = native?.leaseLayer(event.surface);
+    if (!native || !leased) {
+      return undefined;
+    }
+    return new MetalLayerLease<Session>(leased.layer, leased.lease, (token) =>
+      native.releaseLayer(token),
     );
   },
 };

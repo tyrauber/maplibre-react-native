@@ -4,16 +4,46 @@
 #import <React/RCTComponentViewFactory.h>
 #import <React/RCTLog.h>
 
-#include <cerrno>
-#include <cstdlib>
+#include <cstdint>
 #include <functional>
+#include <limits>
 #include <memory>
+#include <string>
 
 #include "MLRNFFIImplementation.h"
 #include "module.h"
 
 #import "MLRNFFILayerRegistry.h"
 #import "MLRNFFISurfaceComponentView.h"
+
+namespace {
+
+// A token in decimal, digits only. Returns 0, which is never a token, for
+// anything else, or for a value past uint64_t.
+uint64_t parseToken(NSString *text) {
+  const char *digits = text.UTF8String;
+  if (digits == nullptr || *digits == '\0') {
+    return 0;
+  }
+  uint64_t value = 0;
+  for (const char *c = digits; *c != '\0'; ++c) {
+    if (*c < '0' || *c > '9') {
+      return 0;
+    }
+    const uint64_t digit = static_cast<uint64_t>(*c - '0');
+    if (value > (std::numeric_limits<uint64_t>::max() - digit) / 10) {
+      return 0;
+    }
+    value = value * 10 + digit;
+  }
+  return value;
+}
+
+NSString *formatToken(uint64_t value) {
+  return [NSString stringWithUTF8String:std::to_string(value).c_str()];
+}
+
+}  // namespace
 
 @implementation MLRNFFIModule {
   std::unique_ptr<mln::hermes::Module> _module;
@@ -60,14 +90,25 @@
   return @MLRN_FFI_IMPLEMENTATION;
 }
 
-- (void)releaseLayer:(NSString *)layer {
-  const char *text = layer.UTF8String;
-  char *end = nullptr;
-  errno = 0;
-  const unsigned long long address = text != nullptr ? std::strtoull(text, &end, 10) : 0;
-  if (text == nullptr || end == text || *end != '\0' || errno != 0 || address == 0 ||
-      !MLRNFFIReleaseLayer(static_cast<uintptr_t>(address))) {
-    RCTLogWarn(@"[MLRNFFIModule] releaseLayer: no retained layer at %@", layer);
+- (NSDictionary *)leaseLayer:(NSString *)surface {
+  const uint64_t token = parseToken(surface);
+  if (token == 0) {
+    return nil;
+  }
+  const MLRNFFILayerLease leased = MLRNFFILeaseLayer(token);
+  if (leased.lease == 0) {
+    return nil;
+  }
+  return @{
+    @"lease" : formatToken(leased.lease),
+    @"layer" : formatToken(static_cast<uint64_t>(leased.layer)),
+  };
+}
+
+- (void)releaseLayer:(NSString *)lease {
+  const uint64_t token = parseToken(lease);
+  if (token == 0 || !MLRNFFIReleaseLease(token)) {
+    RCTLogWarn(@"[MLRNFFIModule] releaseLayer: no lease %@", lease);
   }
 }
 
@@ -77,7 +118,7 @@
   _module.reset();
   const NSUInteger released = MLRNFFIReleaseAllLayers();
   if (released > 0) {
-    RCTLogInfo(@"[MLRNFFIModule] released %lu layer(s) on invalidate", (unsigned long)released);
+    RCTLogInfo(@"[MLRNFFIModule] released %lu lease(s) on invalidate", (unsigned long)released);
   }
 }
 

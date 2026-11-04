@@ -184,7 +184,7 @@ class SurfaceMap {
       console.warn(`[NativeFFI] session close failed: ${String(error)}`);
     }
     console.log(
-      `[NativeFFI] layer ${this.lease.layer} released after ${this.frames} frames`,
+      `[NativeFFI] lease ${this.lease.token} on layer ${this.lease.layer} released after ${this.frames} frames`,
     );
     await this.map
       ?.close()
@@ -247,14 +247,15 @@ export function NativeFFIMap() {
         surfaceMap.current.resize(event);
         return;
       }
+      const lease = NativeFFIManager.leaseLayer<RenderSession>(event);
+      if (!lease) {
+        log(`surface ${event.surface} is gone: nothing to draw`);
+        return;
+      }
+      log(`lease ${lease.token} on surface ${event.surface}`);
       // Loads only after install(): the module reads the bindings when it loads.
       const ffi: NativeFFI = require("@maplibre/native-ffi/hermes");
-      surfaceMap.current = new SurfaceMap(
-        ffi,
-        NativeFFIManager.leaseLayer<RenderSession>(event.layer),
-        event,
-        log,
-      );
+      surfaceMap.current = new SurfaceMap(ffi, lease, event, log);
     },
     [log],
   );

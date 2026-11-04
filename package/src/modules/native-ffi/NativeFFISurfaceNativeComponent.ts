@@ -6,7 +6,7 @@ import {
 } from "react-native";
 
 type LayerEvent = {
-  layer: string;
+  surface: string;
   width: CodegenTypes.Double;
   height: CodegenTypes.Double;
   scale: CodegenTypes.Double;

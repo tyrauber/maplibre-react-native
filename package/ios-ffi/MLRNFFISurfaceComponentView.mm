@@ -25,6 +25,9 @@ using namespace facebook::react;
 
 @implementation MLRNFFISurfaceComponentView {
   MLRNFFIMetalView *_metalView;
+  // Names this view's layer in the registry while it is mounted. Never reused.
+  uint64_t _surface;
+  BOOL _mounted;
   // What onLayer last reported, so a layout that changes nothing reports
   // nothing.
   CGSize _reportedSize;
@@ -38,8 +41,28 @@ using namespace facebook::react;
     _metalView = [[MLRNFFIMetalView alloc] initWithFrame:self.bounds];
     _metalView.layer.opaque = YES;
     self.contentView = _metalView;
+    _surface = MLRNFFIMountSurface((CAMetalLayer *)_metalView.layer);
+    _mounted = YES;
   }
   return self;
+}
+
+// Fabric calls this once the view is unmounted for good: it is never recycled.
+// Leases already taken on the layer stay held.
+- (void)invalidate {
+  [self unmountSurface];
+  [super invalidate];
+}
+
+- (void)dealloc {
+  [self unmountSurface];
+}
+
+- (void)unmountSurface {
+  if (_mounted) {
+    _mounted = NO;
+    MLRNFFIUnmountSurface(_surface);
+  }
 }
 
 // A recycled view would hand its layer to a second map while the first
@@ -68,18 +91,17 @@ using namespace facebook::react;
   CAMetalLayer *layer = (CAMetalLayer *)_metalView.layer;
   const CGSize size = _metalView.bounds.size;
   const CGFloat scale = layer.contentsScale;
-  if (_eventEmitter == nullptr || size.width <= 0 || size.height <= 0 ||
+  if (!_mounted || _eventEmitter == nullptr || size.width <= 0 || size.height <= 0 ||
       (CGSizeEqualToSize(size, _reportedSize) && scale == _reportedScale)) {
     return;
   }
   _reportedSize = size;
   _reportedScale = scale;
 
-  // The registry holds the layer before its address leaves native code.
-  const uintptr_t address = MLRNFFIRetainLayer(layer);
+  // The layer's address leaves native code only with a lease, which holds it.
   std::static_pointer_cast<const MLRNFFISurfaceEventEmitter>(_eventEmitter)
       ->onLayer(MLRNFFISurfaceEventEmitter::OnLayer{
-          .layer = std::to_string(address),
+          .surface = std::to_string(_surface),
           .width = size.width,
           .height = size.height,
           .scale = scale,

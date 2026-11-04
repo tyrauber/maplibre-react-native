@@ -7,13 +7,14 @@ export interface MetalLayerLeaseSession {
 }
 
 /**
- * Experimental: one CAMetalLayer that a `NativeFFISurface` retained for this
- * runtime, from the address its `onLayer` event carries.
+ * Experimental: one hold that native code took on a `NativeFFISurface` 's
+ * CAMetalLayer, from `NativeFFIManager.leaseLayer()` .
  *
  * The MapLibre Native C API renders to the layer until the session's close
- * completes, which is asynchronous. So the lease gives the layer back to native
+ * completes, which is asynchronous. So the lease gives its hold back to native
  * code only after that close settles, and native code keeps the layer alive
- * until then, even when its view is gone.
+ * until then, even when its view is gone. Each lease has its own hold: ending
+ * one never lets go of another lease's layer.
  *
  * A close that rejects still releases the layer once it settles: the session
  * then no longer exists to use it, and holding the layer would only leak it.
@@ -26,12 +27,14 @@ export class MetalLayerLease<
   private released = false;
 
   /**
-   * @param layer - The layer's address, in decimal, as `onLayer` reports it
-   * @param release - Gives the layer back to native code. It runs at most once.
+   * @param layer - The layer's address, in decimal
+   * @param token - The hold's token, in decimal
+   * @param release - Gives the hold with the token back to native code. It runs at most once.
    */
   constructor(
     readonly layer: string,
-    private readonly release: (layer: string) => void,
+    readonly token: string,
+    private readonly release: (token: string) => void,
   ) {}
 
   /** Whether `end()` was called, or an attach failed. */
@@ -88,7 +91,7 @@ export class MetalLayerLease<
   private giveBack(): void {
     if (!this.released) {
       this.released = true;
-      this.release(this.layer);
+      this.release(this.token);
     }
   }
 }

@@ -5,10 +5,11 @@ import NativeFFISurfaceNativeComponent from "./NativeFFISurfaceNativeComponent";
 
 export interface NativeFFISurfaceLayerEvent {
   /**
-   * The CAMetalLayer's address, in decimal. Native code retains the layer until
-   * it is released: take it with `NativeFFIManager.leaseLayer()` .
+   * The surface's token, in decimal. It names this view while it is mounted, and
+   * native code never reuses it. Take a hold on the surface's CAMetalLayer with
+   * `NativeFFIManager.leaseLayer()` .
    */
-  layer: string;
+  surface: string;
   /** The layer's width, in points. */
   width: number;
   /** The layer's height, in points. */
@@ -20,7 +21,7 @@ export interface NativeFFISurfaceLayerEvent {
 export interface NativeFFISurfaceProps extends ViewProps {
   /**
    * Called once the layer has a size, and again whenever its size or scale
-   * changes. Every call names the same layer.
+   * changes. Every call names the same surface.
    */
   onLayer?: (event: NativeFFISurfaceLayerEvent) => void;
 }
@@ -41,8 +42,8 @@ export function NativeFFISurface({ onLayer, ...props }: NativeFFISurfaceProps) {
       onLayer={
         onLayer &&
         ((event: NativeSyntheticEvent<NativeFFISurfaceLayerEvent>) => {
-          const { layer, width, height, scale } = event.nativeEvent;
-          onLayer({ layer, width, height, scale });
+          const { surface, width, height, scale } = event.nativeEvent;
+          onLayer({ surface, width, height, scale });
         })
       }
     />

@@ -27,17 +27,17 @@ async function flush(): Promise<void> {
 // says so, and the order of the calls the test cares about.
 function fakeSession(calls: string[]) {
   const closing = deferred();
-  const ready = deferred();
   const session = {
     close: jest.fn(() => {
       calls.push("close");
       return closing.promise;
     }),
   };
-  return { session, closing, ready };
+  return { session, closing };
 }
 
 const LAYER = "105553116266496";
+const TOKEN = "42";
 
 describe("MetalLayerLease", () => {
   let calls: string[];
@@ -45,13 +45,13 @@ describe("MetalLayerLease", () => {
 
   beforeEach(() => {
     calls = [];
-    release = jest.fn((layer: string) => {
-      calls.push(`release ${layer}`);
+    release = jest.fn((token: string) => {
+      calls.push(`release ${token}`);
     });
   });
 
   it("passes the layer address as a bigint to the attach", () => {
-    const lease = new MetalLayerLease(LAYER, release);
+    const lease = new MetalLayerLease(LAYER, TOKEN, release);
     const { session } = fakeSession(calls);
     const attach = jest.fn(() => session);
 
@@ -60,10 +60,9 @@ describe("MetalLayerLease", () => {
   });
 
   it("releases the layer only after the session's close resolves", async () => {
-    const lease = new MetalLayerLease(LAYER, release);
-    const { session, closing, ready } = fakeSession(calls);
+    const lease = new MetalLayerLease(LAYER, TOKEN, release);
+    const { session, closing } = fakeSession(calls);
     lease.attach(() => session);
-    ready.resolve();
 
     const ended = lease.end();
     await flush();
@@ -74,11 +73,11 @@ describe("MetalLayerLease", () => {
     closing.resolve();
     await ended;
 
-    expect(calls).toEqual(["close", `release ${LAYER}`]);
+    expect(calls).toEqual(["close", `release ${TOKEN}`]);
   });
 
   it("closes a session that is not ready yet, and releases the layer once", async () => {
-    const lease = new MetalLayerLease(LAYER, release);
+    const lease = new MetalLayerLease(LAYER, TOKEN, release);
     // The attach never becomes ready: the view unmounts first.
     const { session, closing } = fakeSession(calls);
     lease.attach(() => session);
@@ -95,11 +94,11 @@ describe("MetalLayerLease", () => {
     await first;
     await lease.end();
 
-    expect(calls).toEqual(["close", `release ${LAYER}`]);
+    expect(calls).toEqual(["close", `release ${TOKEN}`]);
   });
 
   it("holds a rejected close's layer until the close settles, then releases it once", async () => {
-    const lease = new MetalLayerLease(LAYER, release);
+    const lease = new MetalLayerLease(LAYER, TOKEN, release);
     const { session, closing } = fakeSession(calls);
     lease.attach(() => session);
 
@@ -112,20 +111,20 @@ describe("MetalLayerLease", () => {
 
     await expect(ended).rejects.toBe(failure);
     await expect(lease.end()).rejects.toBe(failure);
-    expect(calls).toEqual(["close", `release ${LAYER}`]);
+    expect(calls).toEqual(["close", `release ${TOKEN}`]);
   });
 
   it("releases a layer that was never attached once", async () => {
-    const lease = new MetalLayerLease(LAYER, release);
+    const lease = new MetalLayerLease(LAYER, TOKEN, release);
 
     await lease.end();
     await lease.end();
 
-    expect(calls).toEqual([`release ${LAYER}`]);
+    expect(calls).toEqual([`release ${TOKEN}`]);
   });
 
   it("refuses an attach after the lease ended", async () => {
-    const lease = new MetalLayerLease(LAYER, release);
+    const lease = new MetalLayerLease(LAYER, TOKEN, release);
     await lease.end();
     const attach = jest.fn();
 
@@ -135,7 +134,7 @@ describe("MetalLayerLease", () => {
   });
 
   it("refuses a second attach while a session holds the layer", () => {
-    const lease = new MetalLayerLease(LAYER, release);
+    const lease = new MetalLayerLease(LAYER, TOKEN, release);
     const { session } = fakeSession(calls);
     lease.attach(() => session);
     const attach = jest.fn();
@@ -145,7 +144,7 @@ describe("MetalLayerLease", () => {
   });
 
   it("releases the layer at once when the attach throws, since no session holds it", async () => {
-    const lease = new MetalLayerLease(LAYER, release);
+    const lease = new MetalLayerLease(LAYER, TOKEN, release);
     const failure = new Error("unsupported");
 
     expect(() =>
@@ -153,7 +152,7 @@ describe("MetalLayerLease", () => {
         throw failure;
       }),
     ).toThrow(failure);
-    expect(calls).toEqual([`release ${LAYER}`]);
+    expect(calls).toEqual([`release ${TOKEN}`]);
 
     await lease.end();
     expect(release).toHaveBeenCalledTimes(1);
