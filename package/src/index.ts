@@ -24,6 +24,7 @@ export {
 } from "./components/map/Map";
 
 export type { MapEngine } from "./components/map/engine/MapEngine";
+export { UnsupportedByEngineError } from "./components/map/engine/UnsupportedByEngineError";
 export {
   type MapEngineProviderProps,
   MapEngineProvider,

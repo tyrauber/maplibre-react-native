@@ -10,7 +10,12 @@ export interface MapController {
   readonly ready: Promise<void>;
   readonly isReady: boolean;
   readonly isDisposed: boolean;
-  /** What this engine supports, such as `"camera"`. */
+  /** The engine's name, such as `"ffi"`. */
+  readonly engine: string;
+  /**
+   * What this engine supports, by name: a prop such as `"mapStyle"` or a child
+   * such as `"<Camera>"` in JSX form.
+   */
   readonly capabilities: ReadonlySet<string>;
 
   /**
@@ -34,6 +39,8 @@ export interface MapController {
 }
 
 export interface MapControllerOptions {
+  /** The engine's name, for errors. */
+  engine?: string;
   capabilities?: Iterable<string>;
 }
 
@@ -43,6 +50,7 @@ function disposedError() {
 
 /** @internal */
 export function createMapController({
+  engine = "custom",
   capabilities = [],
 }: MapControllerOptions = {}): MapController {
   let isReady = false;
@@ -69,6 +77,7 @@ export function createMapController({
     get isDisposed() {
       return isDisposed;
     },
+    engine,
     capabilities: new Set(capabilities),
 
     subscribe(listener) {

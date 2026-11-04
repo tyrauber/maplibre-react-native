@@ -565,7 +565,7 @@ export interface MapProps extends BaseProps, ViewProps {
  * ```
  */
 export const Map = memo(
-  ({ androidView = "surface", style, ref, engine, ...props }: MapProps) => {
+  ({ androidView, style, ref, engine, ...props }: MapProps) => {
     const mapEngine = useMapEngine(engine);
     const controller = useMapEngineController(mapEngine);
 

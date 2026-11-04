@@ -9,6 +9,7 @@ import {
 } from "react-native";
 
 import CalloutNativeComponent from "./CalloutNativeComponent";
+import { useEngineSupport } from "../../map/engine/useEngineSupport";
 
 const styles = StyleSheet.create({
   animated: {
@@ -95,6 +96,8 @@ export const Callout = ({
   testID,
   ...props
 }: CalloutProps) => {
+  useEngineSupport("<Callout>");
+
   const calloutContent =
     Children.count(children) > 0 ? (
       <Animated.View

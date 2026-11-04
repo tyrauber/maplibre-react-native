@@ -17,6 +17,7 @@
  * ```
  */
 import { FFIMapView } from "./FFIMapView";
+import { FFI_CAPABILITIES } from "./features";
 import { createMapController } from "../components/map/engine/MapController";
 import {
   defineMapEngine,
@@ -26,5 +27,6 @@ import {
 export const ffiEngine: MapEngine = defineMapEngine({
   name: "ffi",
   MapView: FFIMapView,
-  createController: () => createMapController({ capabilities: ["mapStyle"] }),
+  createController: () =>
+    createMapController({ engine: "ffi", capabilities: FFI_CAPABILITIES }),
 });

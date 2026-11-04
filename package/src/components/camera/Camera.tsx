@@ -18,6 +18,7 @@ import { type BaseProps } from "../../types/BaseProps";
 import type { LngLat } from "../../types/LngLat";
 import type { LngLatBounds } from "../../types/LngLatBounds";
 import type { ViewPadding } from "../../types/ViewPadding";
+import { useEngineSupport } from "../map/engine/useEngineSupport";
 
 /**
  * Camera viewport configuration: zoom, bearing, pitch, and padding.
@@ -289,6 +290,8 @@ export const Camera = memo(
     ref,
     ...stop
   }: CameraProps) => {
+    useEngineSupport("<Camera>");
+
     const nativeRef = useRef<
       Component<ComponentProps<typeof NativeCameraComponent>> &
         ReactNativeElement

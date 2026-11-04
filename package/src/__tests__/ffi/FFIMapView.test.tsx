@@ -20,6 +20,7 @@ import {
 import { ffiEngine } from "@/ffi";
 import { FFIMapSession } from "@/ffi/FFIMapSession";
 import { FFIMapView } from "@/ffi/FFIMapView";
+import { FFI_CAPABILITIES } from "@/ffi/features";
 
 const URL_STYLE = "https://demotiles.maplibre.org/style.json";
 const OBJECT_STYLE = {
@@ -61,8 +62,12 @@ async function surface(
   });
 }
 
+function ffiController() {
+  return createMapController({ engine: "ffi", capabilities: FFI_CAPABILITIES });
+}
+
 /** Renders a map whose session renders to surface 1. */
-async function renderAttached(controller = createMapController()) {
+async function renderAttached(controller = ffiController()) {
   const result = await render(view(controller));
   await layout(result);
   await surface(result, "surfaceAvailable", 1);
@@ -96,7 +101,7 @@ describe("FFI engine", () => {
 
   describe("readiness", () => {
     test("becomes ready once the style loads, then runs queued commands", async () => {
-      const controller = createMapController();
+      const controller = ffiController();
       const command = jest.fn(() => "done");
       const result = controller.run(command);
 
@@ -114,7 +119,7 @@ describe("FFI engine", () => {
     });
 
     test("an event of another map does not make it ready", async () => {
-      const controller = createMapController();
+      const controller = ffiController();
       await renderAttached(controller);
 
       await act(async () =>
@@ -132,7 +137,7 @@ describe("FFI engine", () => {
         name: "ffi-test",
         MapView: FFIMapView,
         createController: () => {
-          const controller = createMapController();
+          const controller = ffiController();
           created.push(controller);
           return controller;
         },
@@ -171,7 +176,7 @@ describe("FFI engine", () => {
     });
 
     test("an object calls the JSON setter with the style", async () => {
-      await render(view(createMapController(), OBJECT_STYLE));
+      await render(view(ffiController(), OBJECT_STYLE));
       await settle();
 
       const map = mockNativeFfi.maps[0]!;
@@ -180,7 +185,7 @@ describe("FFI engine", () => {
     });
 
     test("a JSON string calls the JSON setter with the parsed style", async () => {
-      await render(view(createMapController(), JSON.stringify(OBJECT_STYLE)));
+      await render(view(ffiController(), JSON.stringify(OBJECT_STYLE)));
       await settle();
 
       const map = mockNativeFfi.maps[0]!;
@@ -189,7 +194,7 @@ describe("FFI engine", () => {
     });
 
     test("an equal object does not reload; a new URL does", async () => {
-      const controller = createMapController();
+      const controller = ffiController();
       const result = await render(view(controller, OBJECT_STYLE));
       await settle();
       await result.rerender(view(controller, { ...OBJECT_STYLE }));
@@ -377,7 +382,7 @@ describe("FFI engine", () => {
 
     test("unmount before the runtime exists disposes the runtime once it arrives", async () => {
       mockNativeFfi.hold("runtime.create");
-      const result = await render(view(createMapController()));
+      const result = await render(view(ffiController()));
       await result.unmount();
       await settle();
 
@@ -390,7 +395,7 @@ describe("FFI engine", () => {
 
     test("unmount before the map is ready disposes it and never attaches", async () => {
       mockNativeFfi.hold("map.ready");
-      const result = await render(view(createMapController()));
+      const result = await render(view(ffiController()));
       await layout(result);
       await surface(result, "surfaceAvailable", 1);
       await settle();
@@ -580,6 +585,14 @@ describe("FFI engine", () => {
   });
 
   describe("after the host cleaned the binding up", () => {
+    // Each test's cleanup unmounts the map, which reports the cleaned-up
+    // binding after the test's own hooks have run.
+    let log: jest.SpyInstance;
+    beforeAll(() => {
+      log = jest.spyOn(console, "log").mockImplementation(() => {});
+    });
+    afterAll(() => log.mockRestore());
+
     test("a layout does not throw", async () => {
       const result = await renderAttached();
       mockNativeFfi.cleanUp();
@@ -591,7 +604,7 @@ describe("FFI engine", () => {
     });
 
     test("a new style does not throw", async () => {
-      const controller = createMapController();
+      const controller = ffiController();
       const result = await renderAttached(controller);
       mockNativeFfi.cleanUp();
       mockNativeFfi.calls = [];

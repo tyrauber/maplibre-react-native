@@ -4,6 +4,7 @@ import RasterSourceNativeComponent from "./RasterSourceNativeComponent";
 import { useFrozenId } from "../../../hooks/useFrozenId";
 import { type BaseProps } from "../../../types/BaseProps";
 import { cloneReactChildrenWithProps } from "../../../utils";
+import { useEngineSupport } from "../../map/engine/useEngineSupport";
 
 export interface RasterSourceProps extends BaseProps {
   /**
@@ -70,6 +71,8 @@ export interface RasterSourceProps extends BaseProps {
  * TileJSON specification.
  */
 export const RasterSource = memo(({ id, ...props }: RasterSourceProps) => {
+  useEngineSupport("<RasterSource>");
+
   const frozenId = useFrozenId(id);
 
   return (

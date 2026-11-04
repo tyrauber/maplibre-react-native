@@ -1,9 +1,12 @@
-import { useEffect, useState } from "react";
+import { useEffect, useImperativeHandle, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 
 import { FFIMapSession } from "./FFIMapSession";
+import { FFI_MAP_PROPS } from "./features";
 import { nativeFfi } from "./nativeFfi";
 import type { MapEngineViewProps } from "../components/map/engine/MapEngine";
+import { checkEngineProps } from "../components/map/engine/engineProps";
+import { unsupportedMapRef } from "../components/map/engine/unsupportedMapRef";
 
 /**
  * The FFI engine's map: a `MaplibreSurfaceView` that MapLibre Native draws into
@@ -11,13 +14,28 @@ import type { MapEngineViewProps } from "../components/map/engine/MapEngine";
  *
  * Attribution is required by the data licences of most styles, so it always
  * shows when the style's sources name one.
+ *
+ * A prop the engine cannot honour throws while the map renders, and so does a
+ * child without an FFI implementation; `features.ts` lists both. Plain views
+ * among the children render over the map.
  */
-export function FFIMapView({ props, controller }: MapEngineViewProps) {
-  const { mapStyle, style, testID } = props;
+export function FFIMapView({ props, controller, mapRef }: MapEngineViewProps) {
+  // The map's own props stay in `props`; the rest are plain view props.
+  const { style, testID, children, ...viewProps } = checkEngineProps(
+    controller.engine,
+    props,
+    controller.capabilities,
+    FFI_MAP_PROPS,
+  );
+  const { mapStyle } = props;
   const [attributions, setAttributions] = useState<readonly string[]>([]);
   // The view can report its surface before the effect runs, so the session
   // exists from the first render and starts in the effect.
   const [session] = useState(() => new FFIMapSession(setAttributions));
+
+  useImperativeHandle(mapRef, () => unsupportedMapRef(controller.engine), [
+    controller.engine,
+  ]);
 
   useEffect(() => {
     session.start();
@@ -41,6 +59,7 @@ export function FFIMapView({ props, controller }: MapEngineViewProps) {
 
   return (
     <View
+      {...viewProps}
       style={style ?? styles.flex1}
       testID={testID ? `${testID}-ffi` : undefined}
     >
@@ -61,6 +80,7 @@ export function FFIMapView({ props, controller }: MapEngineViewProps) {
           session.surfaceLost(event.nativeEvent.surface)
         }
       />
+      {children}
       {attributions.length > 0 ? (
         <View style={styles.attribution}>
           <Text style={styles.attributionText}>{attributions.join(" | ")}</Text>
