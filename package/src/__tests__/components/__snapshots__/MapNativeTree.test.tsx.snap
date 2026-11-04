@@ -1,0 +1,39 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`Map without an engine renders the same host tree as before engines: after layout 1`] = `
+<View
+  onLayout={[Function]}
+  style={
+    {
+      "flex": 1,
+    }
+  }
+  testID="mlrn-map-view"
+>
+  <MLRNMapView
+    mapStyle="https://demotiles.maplibre.org/style.json"
+    style={
+      {
+        "flex": 1,
+      }
+    }
+    testID="mlrn-map"
+  >
+    <View
+      testID="child"
+    />
+  </MLRNMapView>
+</View>
+`;
+
+exports[`Map without an engine renders the same host tree as before engines: before layout 1`] = `
+<View
+  onLayout={[Function]}
+  style={
+    {
+      "flex": 1,
+    }
+  }
+  testID="mlrn-map-view"
+/>
+`;

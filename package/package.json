@@ -53,6 +53,18 @@
         "default": "./lib/commonjs/index.js"
       }
     },
+    "./ffi": {
+      "import": {
+        "source": "./src/ffi/index.ts",
+        "types": "./lib/typescript/module/ffi/index.d.ts",
+        "default": "./lib/module/ffi/index.js"
+      },
+      "require": {
+        "source": "./src/ffi/index.ts",
+        "types": "./lib/typescript/commonjs/ffi/index.d.ts",
+        "default": "./lib/commonjs/ffi/index.js"
+      }
+    },
     "./package.json": "./package.json",
     "./app.plugin.js": {
       "require": {
@@ -78,6 +90,7 @@
     "cpp",
     "*.podspec",
     "app.plugin.js",
+    "ffi",
     "!ios/build",
     "!android/build",
     "!android/gradle",
@@ -138,6 +151,7 @@
     }
   },
   "peerDependencies": {
+    "@maplibre/native-ffi-react-native": "*",
     "@types/geojson": "^7946.0.0",
     "@types/react": ">=19.1.0",
     "expo": ">=54.0.0",
@@ -145,6 +159,9 @@
     "react-native": ">=0.80.0"
   },
   "peerDependenciesMeta": {
+    "@maplibre/native-ffi-react-native": {
+      "optional": true
+    },
     "@types/geojson": {
       "optional": true
     },

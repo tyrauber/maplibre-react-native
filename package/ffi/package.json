@@ -1,0 +1,6 @@
+{
+  "main": "../lib/commonjs/ffi/index.js",
+  "module": "../lib/module/ffi/index.js",
+  "types": "../lib/typescript/commonjs/ffi/index.d.ts",
+  "source": "../src/ffi/index.ts"
+}

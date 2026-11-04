@@ -6590,12 +6590,15 @@ __metadata:
     ts-node: "npm:10.9.2"
     typescript: "npm:5.9.3"
   peerDependencies:
+    "@maplibre/native-ffi-react-native": "*"
     "@types/geojson": ^7946.0.0
     "@types/react": ">=19.1.0"
     expo: ">=54.0.0"
     react: ">=19.1.0"
     react-native: ">=0.80.0"
   peerDependenciesMeta:
+    "@maplibre/native-ffi-react-native":
+      optional: true
     "@types/geojson":
       optional: true
     "@types/react":

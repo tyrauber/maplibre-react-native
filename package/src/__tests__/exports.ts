@@ -14,6 +14,7 @@ describe("Package Exports", () => {
       "Camera",
       "UserLocation",
       "NativeUserLocation",
+      "MapEngineProvider",
 
       // Hooks
       "useCurrentPosition",
