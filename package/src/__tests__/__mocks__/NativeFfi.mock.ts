@@ -149,6 +149,10 @@ class FakeMap {
       mockNativeFfi.calls.push(`map.setStyleJson:${typeof json}`);
       throwIfClosed();
     }),
+    applyCameraDelta: jest.fn((delta: unknown) => {
+      mockNativeFfi.cameraCommands.push(["applyCameraDelta", delta]);
+      throwIfClosed();
+    }),
   };
   updateCamera = jest.fn((update: unknown) => {
     mockNativeFfi.cameraCommands.push(["updateCamera", update]);
@@ -341,6 +345,7 @@ export const mockNativeFfi = {
     },
     MapMode: { continuous: 0 },
     CameraUpdateMode: { jump: 0, ease: 1, fly: 2 },
+    GesturePhase: { none: 0, begin: 1, update: 2, end: 3, cancel: 4 },
     RenderDriverKind: { coreWorker: 1 },
     FrameDemandFlag: { waitForUpdate: 2 },
     RenderResult: { failed: 4 },

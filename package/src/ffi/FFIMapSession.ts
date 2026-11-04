@@ -6,6 +6,7 @@ import { PixelRatio } from "react-native";
 
 import { collectAttributions } from "./attribution";
 import {
+  type CameraDelta,
   type LogicalSize,
   type MapHandle,
   nativeFfi,
@@ -161,6 +162,20 @@ export class FFIMapSession {
       throw new Error("[MapLibre FFI] The map is not ready.");
     }
     return action(run.map);
+  }
+
+  /**
+   * Moves the camera by a gesture's delta, at once. Does nothing unless the map
+   * is ready (its style has loaded) and renders to a surface, so a gesture before
+   * then, after the surface is lost, or after a dispose has no effect.
+   */
+  applyCameraDelta(delta: CameraDelta): void {
+    const run = this.#run;
+    const map = run?.map;
+    if (!run?.styleLoaded || map === undefined || run.target === undefined) {
+      return;
+    }
+    unlessRealmClosed(() => map.discarding.applyCameraDelta(delta));
   }
 
   setSize(size: LogicalSize): void {

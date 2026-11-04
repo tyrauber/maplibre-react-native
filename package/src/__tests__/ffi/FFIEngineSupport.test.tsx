@@ -184,8 +184,7 @@ describe("UnsupportedByEngineError", () => {
 
 describe("FFI engine props", () => {
   test.each<[string, Partial<MapProps>]>([
-    ["dragPan", { dragPan: false }],
-    ["touchZoom", { touchZoom: true }],
+    ["touchPitch", { touchPitch: true }],
     ["contentInset", { contentInset: { top: 10 } }],
     ["light", { light: { intensity: 0.5 } }],
     ["preferredFramesPerSecond", { preferredFramesPerSecond: 30 }],

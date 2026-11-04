@@ -1,9 +1,15 @@
-import { useEffect, useImperativeHandle, useState } from "react";
+import {
+  useEffect,
+  useImperativeHandle,
+  useLayoutEffect,
+  useState,
+} from "react";
 import { StyleSheet, Text, View } from "react-native";
 
 import { FFIMapSession } from "./FFIMapSession";
 import { FFISessionContext } from "./FFISessionContext";
 import { FFI_MAP_PROPS } from "./features";
+import { mapGestures } from "./gestures";
 import { nativeFfi } from "./nativeFfi";
 import type { MapEngineViewProps } from "../components/map/engine/MapEngine";
 import { checkEngineProps } from "../components/map/engine/engineProps";
@@ -33,6 +39,21 @@ export function FFIMapView({ props, controller, mapRef }: MapEngineViewProps) {
   // The view can report its surface before the effect runs, so the session
   // exists from the first render and starts in the effect.
   const [session] = useState(() => new FFIMapSession(setAttributions));
+
+  // Gestures move the camera at once, not through the controller's queue. The
+  // session ignores them until the map is ready (see `applyCameraDelta`).
+  const [gestures] = useState(() =>
+    mapGestures((delta) => session.applyCameraDelta(delta)),
+  );
+  const { dragPan, touchZoom, touchRotate, doubleTapZoom } = props;
+  useLayoutEffect(() => {
+    gestures.setToggles({
+      dragPan: dragPan !== false,
+      touchZoom: touchZoom !== false,
+      touchRotate: touchRotate !== false,
+      doubleTapZoom: doubleTapZoom !== false,
+    });
+  }, [gestures, dragPan, touchZoom, touchRotate, doubleTapZoom]);
 
   useImperativeHandle(mapRef, () => unsupportedMapRef(controller.engine), [
     controller.engine,
@@ -80,6 +101,7 @@ export function FFIMapView({ props, controller, mapRef }: MapEngineViewProps) {
         onSurfaceLost={(event) =>
           session.surfaceLost(event.nativeEvent.surface)
         }
+        {...gestures.panHandlers}
       />
       <FFISessionContext value={session}>{children}</FFISessionContext>
       {attributions.length > 0 ? (

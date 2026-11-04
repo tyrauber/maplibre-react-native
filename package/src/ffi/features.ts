@@ -13,7 +13,11 @@ import type {
  *   not listed throws when it renders under this engine.
  * - `MapRef` methods all reject for now.
  */
-export const FFI_CAPABILITIES: readonly string[] = ["mapStyle", "<Camera>"];
+export const FFI_CAPABILITIES: readonly string[] = [
+  "mapStyle",
+  "gestures",
+  "<Camera>",
+];
 
 const none = { support: "none" } as const;
 const cosmetic = { support: "cosmetic" } as const;
@@ -41,12 +45,15 @@ export const FFI_MAP_PROPS: EngineMapProps = {
   contentInset: none,
   preferredFramesPerSecond: none,
 
-  dragPan: none,
-  touchZoom: none,
-  doubleTapZoom: none,
-  doubleTapHoldZoom: none,
-  touchRotate: none,
-  touchPitch: none,
+  // The engine's gestures (see `gestures.ts`) honour these toggles both ways.
+  dragPan: { support: "capability", capability: "gestures" },
+  touchZoom: { support: "capability", capability: "gestures" },
+  doubleTapZoom: { support: "capability", capability: "gestures" },
+  touchRotate: { support: "capability", capability: "gestures" },
+  // The engine has no such gestures. Turning one off is honoured; asking for
+  // one with `true` throws, as any explicit request the engine cannot honour.
+  doubleTapHoldZoom: { support: "value", accepts: (value) => value === false },
+  touchPitch: { support: "value", accepts: (value) => value === false },
 
   onPress: none,
   onLongPress: none,

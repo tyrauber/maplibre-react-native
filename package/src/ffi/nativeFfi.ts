@@ -88,6 +88,21 @@ export interface AnimationOptions {
   easing?: UnitBezier;
 }
 
+export interface ScreenPoint {
+  x: number;
+  y: number;
+}
+
+/** A change to the camera, relative to where it is. */
+export interface CameraDelta {
+  offset?: ScreenPoint;
+  scale?: number;
+  bearing?: number;
+  anchor?: ScreenPoint;
+  animation?: AnimationOptions;
+  gesturePhase?: number;
+}
+
 export interface CameraUpdate {
   mode?: number;
   camera?: {
@@ -119,6 +134,7 @@ export interface MapHandle {
     setStyleUrl(url: string): void;
     /** Takes a JSON value, which the binding serializes itself. */
     setStyleJson(json: unknown): void;
+    applyCameraDelta(delta: CameraDelta): void;
   };
   listStyleSources(): Promise<readonly StyleSourceInfo[]>;
   updateCamera(update: CameraUpdate): Promise<unknown>;
@@ -168,6 +184,11 @@ export interface NativeFfi {
     release(surface: number): void;
   };
   MapMode: { readonly continuous: number };
+  GesturePhase: {
+    readonly begin: number;
+    readonly update: number;
+    readonly end: number;
+  };
   CameraUpdateMode: {
     readonly jump: number;
     readonly ease: number;
