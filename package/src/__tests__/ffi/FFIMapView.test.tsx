@@ -539,6 +539,104 @@ describe("FFI engine", () => {
     });
   });
 
+  describe("held surfaces", () => {
+    test("a retry after a failed attach reuses the held surface", async () => {
+      mockNativeFfi.attachError = new Error("no device");
+      const error = jest.spyOn(console, "error").mockImplementation(() => {});
+      const result = await renderAttached();
+
+      expect(mockNativeFfi.sessions).toHaveLength(0);
+      expect(mockNativeFfi.acquired.has(1)).toBe(true);
+
+      mockNativeFfi.calls = [];
+      await layout(result, 300, 400);
+      await settle();
+
+      expect(lifecycle()).toEqual([
+        `map.attach:${layerOf(1)}`,
+        "session.ready:settled",
+      ]);
+      expect(mockNativeFfi.sessions).toHaveLength(1);
+      error.mockRestore();
+    });
+
+    test("losing a held surface that is not the target leaves the target alone", async () => {
+      mockNativeFfi.hold("session.setTarget");
+      const result = await renderAttached();
+      const error = jest.spyOn(console, "error").mockImplementation(() => {});
+      await surface(result, "surfaceAvailable", 2);
+      await settle();
+      mockNativeFfi.fail("session.setTarget", new Error("no layer"));
+      await settle();
+      mockNativeFfi.calls = [];
+
+      await surface(result, "surfaceLost", 2);
+      await settle();
+
+      expect(lifecycle()).toEqual([]);
+      expect(mockNativeFfi.acquired).toEqual(new Set([1, 2]));
+      error.mockRestore();
+    });
+  });
+
+  describe("after the host cleaned the binding up", () => {
+    test("a layout does not throw", async () => {
+      const result = await renderAttached();
+      mockNativeFfi.cleanUp();
+      mockNativeFfi.calls = [];
+
+      await layout(result, 100, 100);
+
+      expect(mockNativeFfi.calls).toEqual(["session.resize:100x100"]);
+    });
+
+    test("a new style does not throw", async () => {
+      const controller = createMapController();
+      const result = await renderAttached(controller);
+      mockNativeFfi.cleanUp();
+      mockNativeFfi.calls = [];
+
+      await result.rerender(view(controller, OBJECT_STYLE));
+
+      expect(mockNativeFfi.calls).toEqual(["map.setStyleJson:object"]);
+    });
+
+    test("a frame already scheduled does not throw", async () => {
+      let frame: (() => void) | undefined;
+      const raf = jest
+        .spyOn(global, "requestAnimationFrame")
+        .mockImplementation((callback) => {
+          frame = () => callback(0);
+          return 0;
+        });
+      await renderAttached();
+      const session = mockNativeFfi.sessions[0]!;
+      session.drainFrameResults.mockReturnValueOnce([{ disposition: 0 }]);
+      const [, options] = mockNativeFfi.maps[0]!.attachMetalSurface.mock
+        .calls[0] as unknown as [unknown, { frameWake: { callback(): void } }];
+      options.frameWake.callback();
+      expect(frame).toBeDefined();
+      session.demandFrame.mockClear();
+
+      mockNativeFfi.cleanUp();
+      frame!();
+
+      expect(session.demandFrame).toHaveBeenCalledTimes(1);
+      raf.mockRestore();
+    });
+
+    test("any other error still throws", async () => {
+      const result = await renderAttached();
+      mockNativeFfi.sessions[0]!.discarding.resize.mockImplementationOnce(
+        () => {
+          throw new Error("bad size");
+        },
+      );
+
+      await expect(layout(result, 100, 100)).rejects.toThrow("bad size");
+    });
+  });
+
   describe("restart on the same object, as Fast Refresh does", () => {
     test("a retarget queued before the restart does not attach to the old session's surface", async () => {
       mockNativeFfi.hold("session.ready");

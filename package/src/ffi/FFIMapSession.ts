@@ -36,6 +36,19 @@ function isRealmClosed(error: unknown): boolean {
   return error instanceof Error && error.message === REALM_CLOSED;
 }
 
+/**
+ * Makes a synchronous binding call from an event or frame callback. After a
+ * reload the host has cleaned the binding up, so there is nothing left to do;
+ * any other error still throws.
+ */
+function unlessRealmClosed(call: () => void): void {
+  try {
+    call();
+  } catch (error) {
+    if (!isRealmClosed(error)) throw error;
+  }
+}
+
 /** Disposes one native object, and reports a failure other than cleanup. */
 function disposeQuietly(dispose: () => void): void {
   try {
@@ -142,8 +155,9 @@ export class FFIMapSession {
     this.#size = size;
     const run = this.#run;
     if (!run) return;
-    if (run.session !== undefined) {
-      run.session.discarding.resize(size);
+    const session = run.session;
+    if (session !== undefined) {
+      unlessRealmClosed(() => session.discarding.resize(size));
     } else {
       this.#retarget(run);
     }
@@ -260,11 +274,13 @@ export class FFIMapSession {
     const map = run.map;
     const style = this.#style;
     if (!run.mapReady || map === undefined || style === undefined) return;
-    if ("url" in style) {
-      map.discarding.setStyleUrl(style.url);
-    } else {
-      map.discarding.setStyleJson(style.json);
-    }
+    unlessRealmClosed(() => {
+      if ("url" in style) {
+        map.discarding.setStyleUrl(style.url);
+      } else {
+        map.discarding.setStyleJson(style.json);
+      }
+    });
     this.#demandFrame(run);
   }
 
@@ -357,9 +373,11 @@ export class FFIMapSession {
 
   #demandFrame(run: Run): void {
     if (this.#run !== run || run.target === undefined) return;
-    run.session?.demandFrame({
-      flags: nativeFfi.FrameDemandFlag.waitForUpdate,
-    });
+    const session = run.session;
+    if (session === undefined) return;
+    unlessRealmClosed(() =>
+      session.demandFrame({ flags: nativeFfi.FrameDemandFlag.waitForUpdate }),
+    );
   }
 
   #drainFrameResults(run: Run, session: RenderSessionHandle): void {

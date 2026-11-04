@@ -69,6 +69,10 @@ function work<T>(
   });
 }
 
+function throwIfClosed() {
+  if (mockNativeFfi.closed) throw new Error(REALM_CLOSED);
+}
+
 function surfaceOf(layer: bigint): number {
   return Number(layer) - 1000;
 }
@@ -92,10 +96,11 @@ class FakeSession {
   readonly discarding = {
     resize: jest.fn((size: { width: number; height: number }) => {
       mockNativeFfi.calls.push(`session.resize:${size.width}x${size.height}`);
+      throwIfClosed();
     }),
   };
-  demandFrame = jest.fn();
-  drainFrameResults = jest.fn(() => []);
+  demandFrame = jest.fn(() => throwIfClosed());
+  drainFrameResults = jest.fn((): { disposition: number }[] => []);
 
   constructor(layer: bigint) {
     checkUse(this, layer);
@@ -138,9 +143,11 @@ class FakeMap {
   readonly discarding = {
     setStyleUrl: jest.fn((url: string) => {
       mockNativeFfi.calls.push(`map.setStyleUrl:${url}`);
+      throwIfClosed();
     }),
     setStyleJson: jest.fn((json: unknown) => {
       mockNativeFfi.calls.push(`map.setStyleJson:${typeof json}`);
+      throwIfClosed();
     }),
   };
   listStyleSources = jest.fn(() => {
@@ -149,6 +156,11 @@ class FakeMap {
   });
   attachMetalSurface = jest.fn(({ layer }: { layer: bigint }) => {
     mockNativeFfi.calls.push(`map.attach:${layer}`);
+    const error = mockNativeFfi.attachError;
+    if (error) {
+      mockNativeFfi.attachError = undefined;
+      throw error;
+    }
     const session = new FakeSession(layer);
     mockNativeFfi.sessions.push(session);
     return session;
@@ -212,6 +224,8 @@ export const mockNativeFfi = {
   /** Set by `cleanUp()`, as after the host cleaned the binding up. */
   closed: false,
   mapDisposeError: undefined as Error | undefined,
+  /** Thrown by the next attach, once. */
+  attachError: undefined as Error | undefined,
 
   reset() {
     this.calls = [];
@@ -226,6 +240,7 @@ export const mockNativeFfi = {
     this.pending = [];
     this.closed = false;
     this.mapDisposeError = undefined;
+    this.attachError = undefined;
   },
 
   /** Keeps work of this name pending until the test settles it. */
