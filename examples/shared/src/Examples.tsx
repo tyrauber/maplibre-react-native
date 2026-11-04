@@ -319,6 +319,7 @@ const Examples = new ExampleGroup(
 
     new ExampleGroup("Native FFI (experimental)", [
       new ExampleItem("Runtime", MapLibreExamples.NativeFFIRuntime),
+      new ExampleItem("Map", MapLibreExamples.NativeFFIMap),
     ]),
   ],
   true,
