@@ -66,6 +66,7 @@ package.tgz
 package/ios/temp.zip
 package/ios/.framework_version
 package/ios/Pods/
+package/ios-ffi/vendor/
 package/android/build/
 package/android/.gradle/
 package/android/.idea/
