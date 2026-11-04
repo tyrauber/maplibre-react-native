@@ -6,6 +6,7 @@ const config: Config = {
   moduleNameMapper: {
     // Public
     "^@maplibre/maplibre-react-native$": "<rootDir>/src/index.ts",
+    "^@maplibre/maplibre-react-native/ffi$": "<rootDir>/src/ffi/index.ts",
     // Internal
     "^@/(.*)$": "<rootDir>/src/$1",
   },
@@ -13,6 +14,7 @@ const config: Config = {
   setupFilesAfterEnv: [
     "./src/__tests__/__mocks__/react-native.mock.ts",
     "./src/__tests__/__mocks__/NativeModules.mock.ts",
+    "./src/__tests__/__mocks__/NativeFfi.mock.ts",
   ],
   modulePathIgnorePatterns: ["__mocks__", "__fixtures__"],
   collectCoverageFrom: ["src/**/*.{ts,tsx,js,jsx}"],

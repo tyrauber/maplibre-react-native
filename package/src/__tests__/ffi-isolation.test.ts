@@ -94,5 +94,6 @@ describe("FFI isolation", () => {
         "components/map/engine/MapEngine.ts",
       ]),
     );
+    expect(ffi.packages).toContain(FFI_PACKAGE);
   });
 });

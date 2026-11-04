@@ -4,6 +4,7 @@
   "compilerOptions": {
     "paths": {
       "@maplibre/maplibre-react-native": ["../../package/src/index"],
+      "@maplibre/maplibre-react-native/ffi": ["../../package/src/ffi/index"],
       "@/*": ["./src/*"]
     }
   }

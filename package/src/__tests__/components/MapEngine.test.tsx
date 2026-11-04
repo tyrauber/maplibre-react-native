@@ -152,7 +152,7 @@ describe("Map engine", () => {
       expect(last!.isDisposed).toBe(false);
     });
 
-    test("the ffi engine renders its placeholder", async () => {
+    test("the ffi engine renders its own view", async () => {
       const result = await renderMap({ engine: ffiEngine });
 
       expect(result.getByTestId("mlrn-map-ffi")).toBeDefined();

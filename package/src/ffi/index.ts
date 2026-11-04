@@ -26,5 +26,5 @@ import {
 export const ffiEngine: MapEngine = defineMapEngine({
   name: "ffi",
   MapView: FFIMapView,
-  createController: () => createMapController(),
+  createController: () => createMapController({ capabilities: ["mapStyle"] }),
 });
