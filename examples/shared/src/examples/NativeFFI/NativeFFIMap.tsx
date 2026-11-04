@@ -16,6 +16,12 @@ interface Size {
   height: number;
 }
 
+// The C API takes whole logical pixels, and a view's size in points is often
+// fractional, such as under a navigation header.
+function logicalSize({ width, height }: Size): Size {
+  return { width: Math.round(width), height: Math.round(height) };
+}
+
 interface RenderSession {
   close(): Promise<void>;
   demandFrame(demand: { flags: number }): void;
@@ -66,7 +72,7 @@ class SurfaceMap {
     event: NativeFFISurfaceLayerEvent,
     private readonly log: Log,
   ) {
-    this.size = { width: event.width, height: event.height };
+    this.size = logicalSize(event);
     this.running = this.run(event.scale);
     this.running.catch((error: unknown) => {
       if (!this.stopped) {
@@ -160,9 +166,9 @@ class SurfaceMap {
   }
 
   resize(size: Size): void {
-    this.size = size;
+    this.size = logicalSize(size);
     if (!this.stopped) {
-      this.session?.discarding.resize(size);
+      this.session?.discarding.resize(this.size);
     }
   }
 
