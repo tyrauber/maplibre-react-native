@@ -70,8 +70,21 @@ async function renderAttached(controller = createMapController()) {
   return result;
 }
 
+/** The calls that hold or let go of native objects, in order. */
+function lifecycle() {
+  return mockNativeFfi.calls.filter((call) =>
+    /^(session\.(ready|release|releaseTarget|setTarget)|map\.(attach|dispose)|runtime\.dispose|surfaces\.)/.test(
+      call,
+    ),
+  );
+}
+
 beforeEach(() => {
   mockNativeFfi.reset();
+});
+
+afterEach(() => {
+  expect(mockNativeFfi.violations).toEqual([]);
 });
 
 describe("FFI engine", () => {
@@ -255,15 +268,22 @@ describe("FFI engine", () => {
       expect(mockNativeFfi.calls).toContain("session.resize:201x1");
     });
 
-    test("on unmount, releases the session, then disposes, then releases the surface", async () => {
+    test("on unmount, releases the surface only after the session's release settles", async () => {
+      mockNativeFfi.hold("session.release");
       const result = await renderAttached();
       mockNativeFfi.calls = [];
 
       await result.unmount();
       await settle();
 
-      expect(mockNativeFfi.calls).toEqual([
+      expect(lifecycle()).toEqual(["session.release"]);
+
+      mockNativeFfi.settle("session.release");
+      await settle();
+
+      expect(lifecycle()).toEqual([
         "session.release",
+        "session.release:settled",
         "map.dispose",
         "runtime.dispose",
         "surfaces.release:1",
@@ -282,39 +302,176 @@ describe("FFI engine", () => {
       session.dispose();
       await settle();
 
-      expect(mockNativeFfi.calls).toEqual([
+      expect(lifecycle()).toEqual([
         "session.release",
+        "session.release:settled",
         "map.dispose",
         "runtime.dispose",
         "surfaces.release:1",
       ]);
     });
 
-    test("after the binding was cleaned up, still releases the surface once", async () => {
+    test("after the host cleaned the binding up, releases the surface once", async () => {
       const result = await renderAttached();
       mockNativeFfi.calls = [];
-      mockNativeFfi.cleanedUp = true;
+      mockNativeFfi.cleanUp();
       const log = jest.spyOn(console, "log").mockImplementation(() => {});
+      const error = jest.spyOn(console, "error");
 
       await result.unmount();
       await settle();
 
-      expect(mockNativeFfi.calls).toEqual([
+      expect(lifecycle()).toEqual([
         "session.release",
+        "map.dispose",
+        "runtime.dispose",
         "surfaces.release:1",
       ]);
+      expect(log).toHaveBeenCalled();
+      expect(error).not.toHaveBeenCalled();
       log.mockRestore();
+      error.mockRestore();
     });
 
-    test("a lost surface leaves the session, which a new surface retargets", async () => {
+    test("when the session fails to release, keeps the surface held and still disposes", async () => {
+      mockNativeFfi.hold("session.release");
+      const result = await renderAttached();
+      mockNativeFfi.calls = [];
+      const error = jest.spyOn(console, "error").mockImplementation(() => {});
+
+      await result.unmount();
+      await settle();
+      mockNativeFfi.fail("session.release", new Error("busy"));
+      await settle();
+
+      expect(lifecycle()).toEqual([
+        "session.release",
+        "session.release:failed",
+        "map.dispose",
+        "runtime.dispose",
+      ]);
+      expect(mockNativeFfi.acquired.has(1)).toBe(true);
+      expect(error).toHaveBeenCalled();
+      error.mockRestore();
+    });
+
+    test("a map that fails to dispose does not stop the runtime's dispose", async () => {
+      const result = await renderAttached();
+      mockNativeFfi.calls = [];
+      mockNativeFfi.mapDisposeError = new Error("stale");
+      const error = jest.spyOn(console, "error").mockImplementation(() => {});
+
+      await result.unmount();
+      await settle();
+
+      expect(lifecycle()).toEqual([
+        "session.release",
+        "session.release:settled",
+        "map.dispose",
+        "runtime.dispose",
+        "surfaces.release:1",
+      ]);
+      expect(error).toHaveBeenCalled();
+      error.mockRestore();
+    });
+
+    test("unmount before the runtime exists disposes the runtime once it arrives", async () => {
+      mockNativeFfi.hold("runtime.create");
+      const result = await render(view(createMapController()));
+      await result.unmount();
+      await settle();
+
+      mockNativeFfi.settle("runtime.create");
+      await settle();
+
+      expect(mockNativeFfi.runtimes[0]!.dispose).toHaveBeenCalledTimes(1);
+      expect(mockNativeFfi.maps).toHaveLength(0);
+    });
+
+    test("unmount before the map is ready disposes it and never attaches", async () => {
+      mockNativeFfi.hold("map.ready");
+      const result = await render(view(createMapController()));
+      await layout(result);
+      await surface(result, "surfaceAvailable", 1);
+      await settle();
+      await result.unmount();
+      await settle();
+
+      expect(lifecycle()).toEqual(["map.dispose", "runtime.dispose"]);
+
+      mockNativeFfi.settle("map.ready");
+      await settle();
+
+      expect(lifecycle()).toEqual(["map.dispose", "runtime.dispose"]);
+    });
+
+    test("unmount during an attach waits for it, then releases in order", async () => {
+      mockNativeFfi.hold("session.ready");
+      const result = await renderAttached();
+      await result.unmount();
+      await settle();
+
+      expect(lifecycle()).toEqual([
+        "surfaces.acquire:1",
+        `map.attach:${layerOf(1)}`,
+      ]);
+
+      mockNativeFfi.settle("session.ready");
+      await settle();
+
+      expect(lifecycle()).toEqual([
+        "surfaces.acquire:1",
+        `map.attach:${layerOf(1)}`,
+        "session.ready:settled",
+        "session.release",
+        "session.release:settled",
+        "map.dispose",
+        "runtime.dispose",
+        "surfaces.release:1",
+      ]);
+    });
+
+    test("unmount after a lost surface does not release it again", async () => {
+      const result = await renderAttached();
+      await surface(result, "surfaceLost", 1);
+      await settle();
+      await result.unmount();
+      await settle();
+
+      expect(
+        mockNativeFfi.calls.filter((call) => call === "surfaces.release:1"),
+      ).toHaveLength(1);
+    });
+
+    test("a surface that the view withdrew first is not attached", async () => {
+      mockNativeFfi.withdrawn.add(1);
+      const result = await renderAttached();
+      await result.unmount();
+      await settle();
+
+      expect(lifecycle()).toEqual([
+        "surfaces.acquire:1",
+        "map.dispose",
+        "runtime.dispose",
+      ]);
+    });
+
+    test("a lost surface is released only after the session lets go of it", async () => {
+      mockNativeFfi.hold("session.releaseTarget");
       const result = await renderAttached();
       mockNativeFfi.calls = [];
 
       await surface(result, "surfaceLost", 1);
       await settle();
 
-      expect(mockNativeFfi.calls).toEqual([
+      expect(lifecycle()).toEqual(["session.releaseTarget"]);
+
+      mockNativeFfi.settle("session.releaseTarget");
+      await settle();
+
+      expect(lifecycle()).toEqual([
         "session.releaseTarget",
+        "session.releaseTarget:settled",
         "surfaces.release:1",
       ]);
 
@@ -322,25 +479,157 @@ describe("FFI engine", () => {
       await surface(result, "surfaceAvailable", 2);
       await settle();
 
-      expect(mockNativeFfi.calls).toEqual([
+      expect(lifecycle()).toEqual([
         "surfaces.acquire:2",
         `session.setTarget:${layerOf(2)}`,
+        "session.setTarget:settled",
       ]);
       expect(mockNativeFfi.sessions).toHaveLength(1);
     });
 
-    test("a new surface while attached releases the old one after the switch", async () => {
+    test("a new surface releases the old one only after the switch settles", async () => {
+      mockNativeFfi.hold("session.setTarget");
       const result = await renderAttached();
       mockNativeFfi.calls = [];
 
       await surface(result, "surfaceAvailable", 2);
       await settle();
 
-      expect(mockNativeFfi.calls).toEqual([
+      expect(lifecycle()).toEqual([
         "surfaces.acquire:2",
         `session.setTarget:${layerOf(2)}`,
+      ]);
+
+      mockNativeFfi.settle("session.setTarget");
+      await settle();
+
+      expect(lifecycle()).toEqual([
+        "surfaces.acquire:2",
+        `session.setTarget:${layerOf(2)}`,
+        "session.setTarget:settled",
         "surfaces.release:1",
       ]);
+    });
+
+    test("a failed switch keeps both surfaces held until unmount", async () => {
+      mockNativeFfi.hold("session.setTarget");
+      const result = await renderAttached();
+      const error = jest.spyOn(console, "error").mockImplementation(() => {});
+      await surface(result, "surfaceAvailable", 2);
+      await settle();
+      mockNativeFfi.fail("session.setTarget", new Error("no layer"));
+      await settle();
+
+      expect(mockNativeFfi.acquired).toEqual(new Set([1, 2]));
+      expect(error).toHaveBeenCalled();
+
+      mockNativeFfi.calls = [];
+      await result.unmount();
+      await settle();
+
+      expect(lifecycle()).toEqual([
+        "session.release",
+        "session.release:settled",
+        "map.dispose",
+        "runtime.dispose",
+        "surfaces.release:1",
+        "surfaces.release:2",
+      ]);
+      error.mockRestore();
+    });
+  });
+
+  describe("restart on the same object, as Fast Refresh does", () => {
+    test("a retarget queued before the restart does not attach to the old session's surface", async () => {
+      mockNativeFfi.hold("session.ready");
+      const session = new FFIMapSession(() => {});
+      session.start();
+      await settle();
+      session.setSize({ width: 10, height: 10 });
+      session.surfaceAvailable(1);
+      await settle();
+
+      session.dispose();
+      session.start();
+      await settle();
+      mockNativeFfi.settle("session.ready");
+      await settle();
+
+      const calls = lifecycle();
+      expect(calls.slice(0, 8)).toEqual([
+        "surfaces.acquire:1",
+        `map.attach:${layerOf(1)}`,
+        "session.ready:settled",
+        "session.release",
+        "session.release:settled",
+        "map.dispose",
+        "runtime.dispose",
+        "surfaces.release:1",
+      ]);
+      // The new start attaches its own session once the old one is gone.
+      expect(calls.slice(8)).toEqual([
+        "surfaces.acquire:1",
+        `map.attach:${layerOf(1)}`,
+      ]);
+      session.dispose();
+    });
+
+    test("a surfaceLost queued before the restart cannot release a surface the old session uses", async () => {
+      mockNativeFfi.hold("session.setTarget", "session.release");
+      const session = new FFIMapSession(() => {});
+      session.start();
+      session.setSize({ width: 10, height: 10 });
+      session.surfaceAvailable(1);
+      await settle();
+      session.surfaceAvailable(2);
+      await settle();
+      session.surfaceLost(2);
+
+      session.dispose();
+      session.start();
+      await settle();
+      mockNativeFfi.settle("session.setTarget");
+      await settle();
+
+      expect(mockNativeFfi.calls).not.toContain("surfaces.release:2");
+
+      mockNativeFfi.settle("session.release");
+      await settle();
+
+      const calls = mockNativeFfi.calls;
+      expect(calls.indexOf("surfaces.release:2")).toBeGreaterThan(
+        calls.indexOf("session.release:settled"),
+      );
+    });
+  });
+
+  describe("attribution reads", () => {
+    test("at most one read is in flight, and one more follows it", async () => {
+      mockNativeFfi.hold("map.listStyleSources");
+      mockNativeFfi.sources = [{ id: "a", attribution: "A" }];
+      const result = await renderAttached();
+      const map = mockNativeFfi.maps[0]!;
+
+      await act(async () => {
+        mockNativeFfi.emit("mapStyleLoaded");
+        mockNativeFfi.emit("mapSourceChanged");
+        mockNativeFfi.emit("mapSourceChanged");
+        mockNativeFfi.emit("mapSourceChanged");
+      });
+
+      expect(map.listStyleSources).toHaveBeenCalledTimes(1);
+
+      mockNativeFfi.settle("map.listStyleSources");
+      await settle();
+
+      expect(map.listStyleSources).toHaveBeenCalledTimes(2);
+
+      mockNativeFfi.sources = [{ id: "b", attribution: "B" }];
+      mockNativeFfi.settle("map.listStyleSources");
+      await settle();
+
+      expect(map.listStyleSources).toHaveBeenCalledTimes(2);
+      expect(result.getByText("B")).toBeDefined();
     });
   });
 });

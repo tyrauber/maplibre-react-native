@@ -29,6 +29,39 @@ function readStyle(mapStyle: string): Style {
     : { url: mapStyle };
 }
 
+/** The error every binding call throws once the host has cleaned it up. */
+const REALM_CLOSED = "the addon realm is closed";
+
+function isRealmClosed(error: unknown): boolean {
+  return error instanceof Error && error.message === REALM_CLOSED;
+}
+
+/** Disposes one native object, and reports a failure other than cleanup. */
+function disposeQuietly(dispose: () => void): void {
+  try {
+    dispose();
+  } catch (error) {
+    if (!isRealmClosed(error)) console.error("[MapLibre FFI]", error);
+  }
+}
+
+/**
+ * What one `start()` made. A later `dispose()` tears down exactly these
+ * objects, even when the same session starts again before the teardown runs.
+ */
+interface Run {
+  runtime?: RuntimeHandle;
+  map?: MapHandle;
+  mapReady: boolean;
+  styleLoaded: boolean;
+  session?: RenderSessionHandle;
+  /** The surface the session renders to, once it has switched to it. */
+  target?: number;
+  /** The surfaces this run acquired and still holds. */
+  readonly held: Map<number, SurfaceHandles>;
+  attributions: "idle" | "busy" | "again";
+}
+
 /**
  * One map drawn through the MapLibre Native C API on the package's surface
  * view. The view lends its surface when the platform provides one; the session
@@ -36,77 +69,52 @@ function readStyle(mapStyle: string): Style {
  * surface.
  *
  * `start()` and `dispose()` follow the view's effect. Strict Mode and Fast
- * Refresh dispose and start the same object again, so work that a start began
- * drops what it made once a later dispose has run.
+ * Refresh dispose and start the same object again. Each start is a run: work
+ * queued by a run runs only while that run is current, and its teardown
+ * releases what that run holds.
  */
 export class FFIMapSession {
   readonly #onAttributions: (attributions: string[]) => void;
-  #active = false;
+  #run: Run | undefined;
   #failed = false;
-  #epoch = 0;
 
   #controller: MapController | undefined;
   #style: Style | undefined;
-  #mapReady = false;
-  #styleLoaded = false;
   #attributionsKey = "";
-  #attributionsRequest = 0;
 
-  #runtime: RuntimeHandle | undefined;
-  #map: MapHandle | undefined;
-  #session: RenderSessionHandle | undefined;
-
-  // The view's latest size, its latest surface, and the surface that the
-  // session renders to.
+  // The view's latest size and surface.
   #size: LogicalSize | undefined;
   #surface: number | undefined;
-  #target: number | undefined;
-  // Target changes run one at a time, in the order the view reports them.
-  #targets: Promise<void> = Promise.resolve();
+  // Surface changes and teardowns run one at a time, in the order they came.
+  #queue: Promise<void> = Promise.resolve();
 
   constructor(onAttributions: (attributions: string[]) => void) {
     this.#onAttributions = onAttributions;
   }
 
   start(): void {
-    if (this.#active) return;
-    this.#active = true;
+    if (this.#run) return;
+    const run: Run = {
+      mapReady: false,
+      styleLoaded: false,
+      held: new Map(),
+      attributions: "idle",
+    };
+    this.#run = run;
     this.#failed = false;
-    this.#start(++this.#epoch).catch((error: unknown) => this.#fail(error));
+    this.#start(run).catch((error: unknown) => this.#fail(run, error));
   }
 
   /** Releases everything this session holds. A second call does nothing. */
   dispose(): void {
-    if (!this.#active) return;
-    this.#active = false;
-    this.#epoch++;
-    this.#mapReady = false;
-    this.#styleLoaded = false;
-    const session = this.#session;
-    const map = this.#map;
-    const runtime = this.#runtime;
-    const target = this.#target;
-    this.#session = undefined;
-    this.#map = undefined;
-    this.#runtime = undefined;
-    this.#target = undefined;
-    // After any target change in flight, release the session while its wakes
-    // still service it, and only then let go of the surface it used.
-    this.#targets = this.#targets.then(async () => {
-      try {
-        await session?.release();
-        map?.dispose();
-        runtime?.dispose();
-      } catch (error) {
-        // On a reload, React Native has the host clean the binding up before
-        // React unmounts the app, and that cleanup already ended these objects.
-        console.log(
-          "[MapLibre FFI] The binding was already cleaned up:",
-          error,
-        );
-      }
-      if (target !== undefined) nativeFfi.surfaces.release(target);
-    });
+    const run = this.#run;
+    if (!run) return;
+    this.#run = undefined;
+    // After the change in flight, release the session while its wakes still
+    // service it, and only then let go of the surfaces it used.
+    this.#queue = this.#queue
+      .then(() => this.#teardown(run))
+      .catch((error: unknown) => console.error("[MapLibre FFI]", error));
   }
 
   /**
@@ -115,32 +123,35 @@ export class FFIMapSession {
    */
   setController(controller: MapController): void {
     this.#controller = controller;
-    if (this.#styleLoaded) controller.setReady();
+    if (this.#run?.styleLoaded) controller.setReady();
   }
 
   /** Loads `mapStyle`, a URL or a style document. */
   setStyle(mapStyle: string): void {
+    const run = this.#run;
     try {
       this.#style = readStyle(mapStyle);
     } catch (error) {
-      this.#fail(error);
+      if (run) this.#fail(run, error);
       return;
     }
-    this.#applyStyle();
+    if (run) this.#applyStyle(run);
   }
 
   setSize(size: LogicalSize): void {
     this.#size = size;
-    if (this.#session !== undefined) {
-      this.#session.discarding.resize(size);
+    const run = this.#run;
+    if (!run) return;
+    if (run.session !== undefined) {
+      run.session.discarding.resize(size);
     } else {
-      this.#retarget();
+      this.#retarget(run);
     }
   }
 
   surfaceAvailable(surface: number): void {
     this.#surface = surface;
-    this.#retarget();
+    if (this.#run) this.#retarget(this.#run);
   }
 
   // The platform has taken the surface away, as when the app goes to the
@@ -148,20 +159,27 @@ export class FFIMapSession {
   // tiles for the next surface.
   surfaceLost(surface: number): void {
     if (this.#surface === surface) this.#surface = undefined;
-    this.#enqueue(async () => {
-      if (this.#target === surface) {
-        this.#target = undefined;
-        await this.#session?.releaseTarget();
-      }
+    const run = this.#run;
+    if (!run) return;
+    this.#enqueue(run, async () => {
+      // A surface the session does not render to, such as one a failed switch
+      // left, stays held until the teardown.
+      if (run.target !== surface || run.session === undefined) return;
+      await run.session.releaseTarget();
+      run.target = undefined;
+      run.held.delete(surface);
       nativeFfi.surfaces.release(surface);
     });
   }
 
-  async #start(epoch: number): Promise<void> {
+  async #start(run: Run): Promise<void> {
     const { RuntimeEventFlag, RuntimeEventType } = nativeFfi;
     const runtime = await nativeFfi.RuntimeHandle.create();
-    if (epoch !== this.#epoch) return runtime.dispose();
-    this.#runtime = runtime;
+    if (this.#run !== run) {
+      disposeQuietly(() => runtime.dispose());
+      return;
+    }
+    run.runtime = runtime;
 
     const map = runtime.createMap({
       initialExtent: {
@@ -177,139 +195,191 @@ export class FFIMapSession {
         RuntimeEventFlag.mapLoadingFailed |
         RuntimeEventFlag.mapRenderError,
     });
-    this.#map = map;
+    run.map = map;
     runtime.discarding.setEventHandler({
       callback: (events) => {
-        if (epoch !== this.#epoch) return;
+        if (this.#run !== run) return;
         for (const event of events) {
           if (event.source !== map.id) continue;
           switch (event.type) {
             case RuntimeEventType.mapStyleLoaded:
-              this.#styleLoaded = true;
+              run.styleLoaded = true;
               this.#controller?.setReady();
-              this.#refreshAttributions(map, epoch);
+              this.#refreshAttributions(run);
               break;
             case RuntimeEventType.mapSourceChanged:
-              this.#refreshAttributions(map, epoch);
+              this.#refreshAttributions(run);
               break;
             case RuntimeEventType.mapLoadingFailed:
             case RuntimeEventType.mapRenderError:
-              this.#fail(new Error(event.message));
+              this.#fail(run, new Error(event.message));
               break;
           }
         }
       },
     });
     await map.ready;
-    if (epoch !== this.#epoch) return;
-    this.#mapReady = true;
-    this.#applyStyle();
-    this.#retarget();
+    if (this.#run !== run) return;
+    run.mapReady = true;
+    this.#applyStyle(run);
+    this.#retarget(run);
   }
 
-  #applyStyle(): void {
-    const map = this.#map;
+  // Releases the session, then disposes the map and the runtime, then lets go
+  // of the surfaces. A surface stays held when the session may still render to
+  // it: a leak is better than drawing into a freed layer.
+  async #teardown(run: Run): Promise<void> {
+    let sessionEnded = true;
+    if (run.session !== undefined) {
+      try {
+        await run.session.release();
+      } catch (error) {
+        if (isRealmClosed(error)) {
+          // On a reload, React Native has the host clean the binding up before
+          // React unmounts the app. That cleanup ended the session and let go
+          // of its surfaces.
+          console.log("[MapLibre FFI] The binding was already cleaned up.");
+        } else {
+          sessionEnded = false;
+          console.error(
+            "[MapLibre FFI] The render session did not release, so its surfaces stay held:",
+            error,
+          );
+        }
+      }
+    }
+    const { map, runtime } = run;
+    if (map) disposeQuietly(() => map.dispose());
+    if (runtime) disposeQuietly(() => runtime.dispose());
+    if (!sessionEnded) return;
+    for (const surface of run.held.keys()) nativeFfi.surfaces.release(surface);
+    run.held.clear();
+  }
+
+  #applyStyle(run: Run): void {
+    const map = run.map;
     const style = this.#style;
-    if (!this.#mapReady || map === undefined || style === undefined) return;
+    if (!run.mapReady || map === undefined || style === undefined) return;
     if ("url" in style) {
       map.discarding.setStyleUrl(style.url);
     } else {
       map.discarding.setStyleJson(style.json);
     }
-    this.#demandFrame();
+    this.#demandFrame(run);
   }
 
-  // Reads the attributions of the style's sources. Only the latest read
-  // reports, and only when the attributions changed.
-  #refreshAttributions(map: MapHandle, epoch: number): void {
-    const request = ++this.#attributionsRequest;
-    map.listStyleSources().then(
-      (sources) => {
-        if (epoch !== this.#epoch || request !== this.#attributionsRequest) {
-          return;
-        }
-        const attributions = collectAttributions(sources);
-        const key = attributions.join("\n");
-        if (key === this.#attributionsKey) return;
-        this.#attributionsKey = key;
-        this.#onAttributions(attributions);
-      },
-      (error: unknown) => {
-        if (epoch === this.#epoch) this.#fail(error);
-      },
-    );
+  // Reads the attributions of the style's sources: at most one read at a time,
+  // and one more after it when a source changed meanwhile. Reports only a
+  // change.
+  #refreshAttributions(run: Run): void {
+    const map = run.map;
+    if (map === undefined) return;
+    if (run.attributions !== "idle") {
+      run.attributions = "again";
+      return;
+    }
+    run.attributions = "busy";
+    map
+      .listStyleSources()
+      .then(
+        (sources) => {
+          if (this.#run !== run) return;
+          const attributions = collectAttributions(sources);
+          const key = attributions.join("\n");
+          if (key === this.#attributionsKey) return;
+          this.#attributionsKey = key;
+          this.#onAttributions(attributions);
+        },
+        (error: unknown) => this.#fail(run, error),
+      )
+      .finally(() => {
+        const again = run.attributions === "again";
+        run.attributions = "idle";
+        if (again && this.#run === run) this.#refreshAttributions(run);
+      });
   }
 
   // Gives the session the view's latest surface, attaching the session first
-  // if there is none.
-  #retarget(): void {
-    this.#enqueue(async () => {
-      const epoch = this.#epoch;
-      // The view can report its surface before the map is ready to take a
-      // session.
-      await this.#map?.ready;
-      const map = this.#map;
+  // if there is none. Before the map is ready this does nothing: the start
+  // retargets once it is.
+  #retarget(run: Run): void {
+    this.#enqueue(run, async () => {
+      const map = run.map;
       const size = this.#size;
       const surface = this.#surface;
       if (
-        epoch !== this.#epoch ||
+        !run.mapReady ||
         map === undefined ||
         size === undefined ||
         surface === undefined ||
-        surface === this.#target
+        surface === run.target
       ) {
         return;
       }
-      const handles = nativeFfi.surfaces.acquire(surface);
-      // The view withdrew the surface before the session got to it.
-      if (handles === undefined) return;
-      const previous = this.#target;
-      this.#target = surface;
-      if (this.#session === undefined) {
-        const session = attach(map, size, handles, {
+      let handles = run.held.get(surface);
+      if (handles === undefined) {
+        handles = nativeFfi.surfaces.acquire(surface);
+        // The view withdrew the surface before the session got to it.
+        if (handles === undefined) return;
+        run.held.set(surface, handles);
+      }
+      const previous = run.target;
+      if (run.session === undefined) {
+        const session: RenderSessionHandle = attach(map, size, handles, {
           driver: nativeFfi.RenderDriverKind.coreWorker,
-          frameWake: { callback: () => this.#drainFrameResults() },
+          frameWake: {
+            callback: () => this.#drainFrameResults(run, session),
+          },
         });
-        this.#session = session;
+        run.session = session;
         await session.ready;
       } else {
-        await setTarget(this.#session, size, handles);
+        await setTarget(run.session, size, handles);
       }
-      if (previous !== undefined) nativeFfi.surfaces.release(previous);
-      this.#demandFrame();
+      // The session renders to the new surface only once the switch settles.
+      // If it fails, both surfaces stay held until the teardown.
+      run.target = surface;
+      if (previous !== undefined) {
+        run.held.delete(previous);
+        nativeFfi.surfaces.release(previous);
+      }
+      this.#demandFrame(run);
     });
   }
 
-  #enqueue(change: () => Promise<void>): void {
-    this.#targets = this.#targets
-      .then(() => (this.#active ? change() : undefined))
-      .catch((error: unknown) => this.#fail(error));
+  // Runs a change after the ones before it, only while its run is current.
+  // A teardown is queued directly, so this check never skips one.
+  #enqueue(run: Run, change: () => Promise<void>): void {
+    this.#queue = this.#queue
+      .then(() => (this.#run === run ? change() : undefined))
+      .catch((error: unknown) => this.#fail(run, error));
   }
 
-  #demandFrame = (): void => {
-    if (this.#target === undefined) return;
-    this.#session?.demandFrame({
+  #demandFrame(run: Run): void {
+    if (this.#run !== run || run.target === undefined) return;
+    run.session?.demandFrame({
       flags: nativeFfi.FrameDemandFlag.waitForUpdate,
     });
-  };
+  }
 
-  #drainFrameResults(): void {
-    const results = this.#session?.drainFrameResults() ?? [];
+  #drainFrameResults(run: Run, session: RenderSessionHandle): void {
+    if (this.#run !== run) return;
+    const results = session.drainFrameResults();
     if (results.length === 0) return;
     if (
       results.some(
         ({ disposition }) => disposition === nativeFfi.RenderResult.failed,
       )
     ) {
-      this.#fail(new Error("The map failed to render a frame."));
+      this.#fail(run, new Error("The map failed to render a frame."));
     } else {
-      requestAnimationFrame(this.#demandFrame);
+      requestAnimationFrame(() => this.#demandFrame(run));
     }
   }
 
-  // Reports the first failure of a start; later ones follow from it.
-  #fail(error: unknown): void {
-    if (!this.#active || this.#failed) return;
+  // Reports the first failure of a run; later ones follow from it.
+  #fail(run: Run, error: unknown): void {
+    if (this.#run !== run || this.#failed) return;
     this.#failed = true;
     console.error("[MapLibre FFI]", error);
   }
