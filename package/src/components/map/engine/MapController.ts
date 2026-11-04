@@ -1,3 +1,5 @@
+import type { ComponentType } from "react";
+
 /**
  * The per-map controller of a non-native engine. `<Map>` makes one per mount
  * and gives it to its children through a private context. Children send it
@@ -17,6 +19,11 @@ export interface MapController {
    * such as `"<Camera>"` in JSX form.
    */
   readonly capabilities: ReadonlySet<string>;
+  /**
+   * The engine's own implementations of `<Map>` children, by the same names as
+   * the capabilities, such as `"<Camera>"` .
+   */
+  readonly components: ReadonlyMap<string, ComponentType<never>>;
 
   /**
    * Calls `listener` when the controller becomes ready or is disposed. Returns a
@@ -42,6 +49,7 @@ export interface MapControllerOptions {
   /** The engine's name, for errors. */
   engine?: string;
   capabilities?: Iterable<string>;
+  components?: Readonly<Record<string, ComponentType<never>>>;
 }
 
 function disposedError() {
@@ -52,6 +60,7 @@ function disposedError() {
 export function createMapController({
   engine = "custom",
   capabilities = [],
+  components = {},
 }: MapControllerOptions = {}): MapController {
   let isReady = false;
   let isDisposed = false;
@@ -79,6 +88,7 @@ export function createMapController({
     },
     engine,
     capabilities: new Set(capabilities),
+    components: new Map(Object.entries(components)),
 
     subscribe(listener) {
       listeners.add(listener);

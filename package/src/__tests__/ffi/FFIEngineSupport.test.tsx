@@ -266,7 +266,6 @@ describe("FFI engine children", () => {
   const point: GeoJSON.Point = { type: "Point", coordinates: [0, 0] };
 
   test.each<[string, ReactElement]>([
-    ["<Camera>", <Camera zoom={2} />],
     ["<Images>", <Images images={{}} />],
     ["<Layer>", <Layer id="l" type="background" />],
     ["<NativeUserLocation>", <NativeUserLocation />],
@@ -309,6 +308,13 @@ describe("FFI engine children", () => {
       expect(mockRendered).toEqual([]);
     },
   );
+
+  test("<Camera> renders the FFI camera, not the native one", async () => {
+    const { caught } = await renderFfi({}, <Camera zoom={2} />);
+
+    expect(caught).toBeUndefined();
+    expect(mockRendered).toEqual([]);
+  });
 
   test("a child inside a wrapper component throws too", async () => {
     function Wrapper() {

@@ -150,6 +150,22 @@ class FakeMap {
       throwIfClosed();
     }),
   };
+  updateCamera = jest.fn((update: unknown) => {
+    mockNativeFfi.cameraCommands.push(["updateCamera", update]);
+    return work("map.updateCamera", () => ({}));
+  });
+  fitCameraToLatLngBounds = jest.fn((bounds: unknown, update: unknown) => {
+    mockNativeFfi.cameraCommands.push([
+      "fitCameraToLatLngBounds",
+      bounds,
+      update,
+    ]);
+    return work("map.fitCameraToLatLngBounds", () => ({}));
+  });
+  setBounds = jest.fn((options: unknown) => {
+    mockNativeFfi.cameraCommands.push(["setBounds", options]);
+    return work("map.setBounds", () => ({}));
+  });
   listStyleSources = jest.fn(() => {
     mockNativeFfi.calls.push("map.listStyleSources");
     return work("map.listStyleSources", () => mockNativeFfi.sources);
@@ -210,6 +226,8 @@ export function layerOf(surface: number): bigint {
 
 export const mockNativeFfi = {
   calls: [] as string[],
+  /** Camera commands, with their arguments, in the order they were sent. */
+  cameraCommands: [] as unknown[][],
   violations: [] as string[],
   runtimes: [] as FakeRuntime[],
   maps: [] as FakeMap[],
@@ -229,6 +247,7 @@ export const mockNativeFfi = {
 
   reset() {
     this.calls = [];
+    this.cameraCommands = [];
     this.violations = [];
     this.runtimes = [];
     this.maps = [];
@@ -321,6 +340,7 @@ export const mockNativeFfi = {
       }),
     },
     MapMode: { continuous: 0 },
+    CameraUpdateMode: { jump: 0, ease: 1, fly: 2 },
     RenderDriverKind: { coreWorker: 1 },
     FrameDemandFlag: { waitForUpdate: 2 },
     RenderResult: { failed: 4 },

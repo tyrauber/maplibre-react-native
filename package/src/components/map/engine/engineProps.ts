@@ -54,7 +54,7 @@ export function checkEngineProps(
   engine: string,
   props: object,
   capabilities: ReadonlySet<string>,
-  table: EngineMapProps,
+  table: { readonly [name: string]: EnginePropSupport },
 ): ViewProps {
   const entries = table as Readonly<
     Record<string, EnginePropSupport | undefined>

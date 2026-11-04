@@ -1,4 +1,6 @@
 import {
+  Camera,
+  type LngLat,
   Map,
   type MapEngine,
   type StyleSpecification,
@@ -47,9 +49,17 @@ const STYLES: Record<"URL" | "TileJSON" | "JSON", string | StyleSpecification> =
     JSON: OSM_RASTER_STYLE as StyleSpecification,
   };
 
+// Places the camera flies between, after it starts over Europe.
+const PLACES: { name: string; center: LngLat; zoom: number }[] = [
+  { name: "Tokyo", center: [139.767, 35.681], zoom: 10 },
+  { name: "Paris", center: [2.3522, 48.8566], zoom: 11 },
+];
+
 export function NativeFFILibraryMap() {
   const [engine] = useState(load);
   const [style, setStyle] = useState<keyof typeof STYLES>("URL");
+  const [place, setPlace] = useState<number>();
+  const next = PLACES[((place ?? -1) + 1) % PLACES.length]!;
 
   if (engine instanceof Error) {
     return (
@@ -65,7 +75,22 @@ export function NativeFFILibraryMap() {
 
   return (
     <View style={styles.root}>
-      <Map engine={engine} mapStyle={STYLES[style]} testID="ffi-library-map" />
+      <Map engine={engine} mapStyle={STYLES[style]} testID="ffi-library-map">
+        <Camera
+          initialViewState={{ center: [10, 50], zoom: 3 }}
+          center={place === undefined ? undefined : PLACES[place]!.center}
+          zoom={place === undefined ? undefined : PLACES[place]!.zoom}
+          easing="fly"
+          duration={3000}
+        />
+      </Map>
+      <Pressable
+        accessibilityRole="button"
+        onPress={() => setPlace(PLACES.indexOf(next))}
+        style={[styles.toggle, styles.fly]}
+      >
+        <Text style={styles.option}>{`Fly to ${next.name}`}</Text>
+      </Pressable>
       <View style={styles.toggle}>
         {(Object.keys(STYLES) as (keyof typeof STYLES)[]).map((key) => (
           <Pressable
@@ -108,6 +133,7 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255, 255, 255, 0.92)",
   },
   option: { paddingHorizontal: 14, paddingVertical: 8 },
+  fly: { top: undefined, bottom: 40 },
   selected: { backgroundColor: "#295daa" },
   selectedText: { color: "#fff" },
 });

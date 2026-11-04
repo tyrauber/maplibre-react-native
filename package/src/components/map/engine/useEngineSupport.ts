@@ -1,4 +1,4 @@
-import { useContext } from "react";
+import { type ComponentType, useContext } from "react";
 
 import { MapControllerContext } from "./MapControllerContext";
 import { UnsupportedByEngineError } from "./UnsupportedByEngineError";
@@ -20,4 +20,23 @@ export function useEngineSupport(feature: string): void {
   if (controller && !controller.capabilities.has(feature)) {
     throw new UnsupportedByEngineError(controller.engine, feature);
   }
+}
+
+/**
+ * Picks a `<Map>` child's implementation: `undefined` under the native engine,
+ * or the engine's own component for `feature` , such as `"<Camera>"` . Throws
+ * `UnsupportedByEngineError` when the engine has none.
+ *
+ * @internal
+ */
+export function useEngineComponent<P>(
+  feature: string,
+): ComponentType<P> | undefined {
+  const controller = useContext(MapControllerContext);
+  if (!controller) return undefined;
+  const component = controller.components.get(feature);
+  if (!controller.capabilities.has(feature) || component === undefined) {
+    throw new UnsupportedByEngineError(controller.engine, feature);
+  }
+  return component as ComponentType<P>;
 }

@@ -58,6 +58,60 @@ export interface RenderSessionHandle {
   }): Promise<void>;
 }
 
+export interface LatLng {
+  latitude: number;
+  longitude: number;
+}
+
+export interface LatLngBounds {
+  southwest: LatLng;
+  northeast: LatLng;
+}
+
+export interface EdgeInsets {
+  top: number;
+  left: number;
+  bottom: number;
+  right: number;
+}
+
+/** A timing curve from (0, 0) to (1, 1) with two control points. */
+export interface UnitBezier {
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+}
+
+export interface AnimationOptions {
+  durationMs?: number;
+  easing?: UnitBezier;
+}
+
+export interface CameraUpdate {
+  mode?: number;
+  camera?: {
+    center?: LatLng;
+    padding?: EdgeInsets;
+    zoom?: number;
+    bearing?: number;
+    pitch?: number;
+  };
+  animation?: AnimationOptions;
+}
+
+export interface CameraFitUpdate {
+  mode?: number;
+  fit?: { padding?: EdgeInsets; bearing?: number; pitch?: number };
+  animation?: AnimationOptions;
+}
+
+export interface BoundOptions {
+  bounds?: LatLngBounds;
+  minZoom?: number;
+  maxZoom?: number;
+}
+
 export interface MapHandle {
   readonly id: bigint;
   readonly ready: Promise<void>;
@@ -67,6 +121,12 @@ export interface MapHandle {
     setStyleJson(json: unknown): void;
   };
   listStyleSources(): Promise<readonly StyleSourceInfo[]>;
+  updateCamera(update: CameraUpdate): Promise<unknown>;
+  fitCameraToLatLngBounds(
+    bounds: LatLngBounds,
+    update: CameraFitUpdate,
+  ): Promise<unknown>;
+  setBounds(options: BoundOptions): Promise<unknown>;
   attachMetalSurface(
     descriptor: { logicalSize: LogicalSize; layer: bigint },
     options: RenderSessionAttachOptions,
@@ -108,6 +168,11 @@ export interface NativeFfi {
     release(surface: number): void;
   };
   MapMode: { readonly continuous: number };
+  CameraUpdateMode: {
+    readonly jump: number;
+    readonly ease: number;
+    readonly fly: number;
+  };
   RenderDriverKind: { readonly coreWorker: number };
   FrameDemandFlag: { readonly waitForUpdate: number };
   RenderResult: { readonly failed: number };

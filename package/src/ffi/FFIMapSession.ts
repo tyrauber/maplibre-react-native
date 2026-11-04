@@ -151,6 +151,18 @@ export class FFIMapSession {
     if (run) this.#applyStyle(run);
   }
 
+  /**
+   * Calls `action` with the current map. Throws while no map is ready, which
+   * commands sent through the map's controller never see.
+   */
+  withMap<T>(action: (map: MapHandle) => T): T {
+    const run = this.#run;
+    if (!run?.mapReady || run.map === undefined) {
+      throw new Error("[MapLibre FFI] The map is not ready.");
+    }
+    return action(run.map);
+  }
+
   setSize(size: LogicalSize): void {
     this.#size = size;
     const run = this.#run;

@@ -16,6 +16,7 @@
  * </MapEngineProvider>;
  * ```
  */
+import { FFICamera } from "./FFICamera";
 import { FFIMapView } from "./FFIMapView";
 import { FFI_CAPABILITIES } from "./features";
 import { createMapController } from "../components/map/engine/MapController";
@@ -28,5 +29,9 @@ export const ffiEngine: MapEngine = defineMapEngine({
   name: "ffi",
   MapView: FFIMapView,
   createController: () =>
-    createMapController({ engine: "ffi", capabilities: FFI_CAPABILITIES }),
+    createMapController({
+      engine: "ffi",
+      capabilities: FFI_CAPABILITIES,
+      components: { "<Camera>": FFICamera },
+    }),
 });

@@ -2,6 +2,7 @@ import { useEffect, useImperativeHandle, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 
 import { FFIMapSession } from "./FFIMapSession";
+import { FFISessionContext } from "./FFISessionContext";
 import { FFI_MAP_PROPS } from "./features";
 import { nativeFfi } from "./nativeFfi";
 import type { MapEngineViewProps } from "../components/map/engine/MapEngine";
@@ -80,7 +81,7 @@ export function FFIMapView({ props, controller, mapRef }: MapEngineViewProps) {
           session.surfaceLost(event.nativeEvent.surface)
         }
       />
-      {children}
+      <FFISessionContext value={session}>{children}</FFISessionContext>
       {attributions.length > 0 ? (
         <View style={styles.attribution}>
           <Text style={styles.attributionText}>{attributions.join(" | ")}</Text>

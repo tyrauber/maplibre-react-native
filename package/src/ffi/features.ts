@@ -1,4 +1,8 @@
-import type { EngineMapProps } from "../components/map/engine/engineProps";
+import type { CameraProps } from "../components/camera/Camera";
+import type {
+  EngineMapProps,
+  EnginePropSupport,
+} from "../components/map/engine/engineProps";
 
 /**
  * What the FFI engine supports. A later slice that adds a feature adds its
@@ -9,7 +13,7 @@ import type { EngineMapProps } from "../components/map/engine/engineProps";
  *   not listed throws when it renders under this engine.
  * - `MapRef` methods all reject for now.
  */
-export const FFI_CAPABILITIES: readonly string[] = ["mapStyle"];
+export const FFI_CAPABILITIES: readonly string[] = ["mapStyle", "<Camera>"];
 
 const none = { support: "none" } as const;
 const cosmetic = { support: "cosmetic" } as const;
@@ -59,4 +63,39 @@ export const FFI_MAP_PROPS: EngineMapProps = {
   onDidFinishRenderingMap: none,
   onDidFinishRenderingMapFully: none,
   onDidFinishLoadingStyle: none,
+};
+
+const camera = { support: "capability", capability: "<Camera>" } as const;
+
+/**
+ * How the FFI engine treats every `<Camera>` prop. The type lists every prop
+ * but `ref` , so a new `<Camera>` prop does not compile until it is decided.
+ *
+ * - The stop, its animation, the initial view and the limits map to the binding's
+ *   camera commands (see `camera.ts`).
+ * - Tracking the user's location needs a location source the engine does not have
+ *   yet.
+ */
+// Every key of every kind of `CameraProps`, such as `center` and `bounds`.
+type KeyOfUnion<T> = T extends unknown ? keyof T : never;
+
+export const FFI_CAMERA_PROPS: Readonly<
+  Record<Exclude<KeyOfUnion<CameraProps>, "ref">, EnginePropSupport>
+> = {
+  // No view carries it; the camera renders nothing.
+  testID: camera,
+  center: camera,
+  bounds: camera,
+  zoom: camera,
+  bearing: camera,
+  pitch: camera,
+  padding: camera,
+  duration: camera,
+  easing: camera,
+  initialViewState: camera,
+  minZoom: camera,
+  maxZoom: camera,
+  maxBounds: camera,
+  trackUserLocation: none,
+  onTrackUserLocationChange: none,
 };
