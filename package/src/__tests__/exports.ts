@@ -28,10 +28,6 @@ describe("Package Exports", () => {
       "StaticMapImageManager",
       "TransformRequestManager",
 
-      // Native FFI (experimental)
-      "NativeFFIManager",
-      "NativeFFISurface",
-
       // Layer
       "Layer",
 

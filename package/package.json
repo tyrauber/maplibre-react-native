@@ -76,7 +76,7 @@
     "android",
     "ios",
     "cpp",
-    "MapLibreReactNative.podspec",
+    "*.podspec",
     "app.plugin.js",
     "!ios/build",
     "!android/build",

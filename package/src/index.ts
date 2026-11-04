@@ -143,17 +143,6 @@ export {
 
 export { LogManager, type LogLevel } from "./modules/log/LogManager";
 
-export { NativeFFIManager } from "./modules/native-ffi/NativeFFIManager";
-export {
-  NativeFFISurface,
-  type NativeFFISurfaceLayerEvent,
-  type NativeFFISurfaceProps,
-} from "./modules/native-ffi/NativeFFISurface";
-export type {
-  MetalLayerLease,
-  MetalLayerLeaseSession,
-} from "./modules/native-ffi/MetalLayerLease";
-
 export { NetworkManager } from "./modules/network/NetworkManager";
 
 export {

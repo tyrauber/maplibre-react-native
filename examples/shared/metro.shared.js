@@ -1,26 +1,14 @@
 /* global __dirname */
-const fs = require("node:fs");
 const path = require("node:path");
 const { withMetroConfig } = require("react-native-monorepo-config");
 const {
   wrapWithReanimatedMetroConfig,
 } = require("react-native-reanimated/metro-config");
 
+const nativeFfi = require("./nativeFfi");
+
 const root = path.resolve(__dirname, "..", "..");
 
-// Experimental: @maplibre/native-ffi/hermes is not on npm yet, so it comes from a
-// maplibre-native-ffi checkout, by default next to this repository. Metro takes
-// the bundle that npm would ship, which package/ios-ffi/stage.sh builds: React
-// Native's Babel preset rejects the sources' `declare` fields.
-const nativeFfiDist = path.join(
-  process.env.MLN_FFI_DIR ?? path.join(root, "..", "maplibre-native-ffi"),
-  "bindings",
-  "typescript",
-  "build",
-  "dist",
-);
-const nativeFfiHermes = path.join(nativeFfiDist, "hermes.mjs");
-const hasNativeFfi = fs.existsSync(nativeFfiHermes);
 const nativeFfiStub = path.join(
   __dirname,
   "src",
@@ -44,52 +32,52 @@ function withMetroShared(config, { project }) {
     }),
   );
 
-  const resolveRequest = metroConfig.resolver?.resolveRequest;
+  const resolveRequest = metroConfig.resolver?.resolveRequest ?? null;
+  const resolve = (context, moduleName, platform) =>
+    (resolveRequest ?? context.resolveRequest)(context, moduleName, platform);
 
   return {
     ...metroConfig,
-    watchFolders: hasNativeFfi
-      ? [...(metroConfig.watchFolders ?? []), nativeFfiDist]
+    watchFolders: nativeFfi.available
+      ? [
+          ...(metroConfig.watchFolders ?? []),
+          path.join(nativeFfi.binding, "src"),
+          path.join(nativeFfi.reactNative, "src"),
+        ]
       : metroConfig.watchFolders,
     resolver: {
       ...metroConfig.resolver,
-      // Babel adds @babel/runtime imports to the bundle, which has no
-      // node_modules of its own.
-      nodeModulesPaths: hasNativeFfi
-        ? [
-            ...(metroConfig.resolver?.nodeModulesPaths ?? []),
-            path.join(project, "node_modules"),
-          ]
-        : metroConfig.resolver?.nodeModulesPaths,
       extraNodeModules: {
         ...metroConfig.resolver?.extraNodeModules,
         "@": path.resolve(__dirname, "src"),
       },
       resolveRequest: (context, moduleName, platform) => {
+        if (moduleName === "@maplibre/native-ffi-react-native") {
+          return {
+            type: "sourceFile",
+            filePath: nativeFfi.available ? nativeFfi.entry : nativeFfiStub,
+          };
+        }
         if (moduleName === "@maplibre/native-ffi/hermes") {
           return {
             type: "sourceFile",
-            filePath: hasNativeFfi ? nativeFfiHermes : nativeFfiStub,
+            filePath: path.join(nativeFfi.binding, "src", "hermes.ts"),
           };
         }
-        // The bundle's chunks are .mjs, which Metro does not resolve itself.
+        // The checkout's own node_modules hold its React Native version. React
+        // Native, React and Babel's helpers come from the app instead.
         if (
-          moduleName.startsWith("./") &&
-          context.originModulePath.startsWith(nativeFfiDist + path.sep)
+          nativeFfi.available &&
+          !moduleName.startsWith(".") &&
+          context.originModulePath.startsWith(nativeFfi.binding + path.sep)
         ) {
-          return {
-            type: "sourceFile",
-            filePath: path.resolve(
-              path.dirname(context.originModulePath),
-              moduleName,
-            ),
-          };
+          return resolve(
+            { ...context, originModulePath: path.join(project, "index.js") },
+            moduleName,
+            platform,
+          );
         }
-        return (resolveRequest ?? context.resolveRequest)(
-          context,
-          moduleName,
-          platform,
-        );
+        return resolve(context, moduleName, platform);
       },
     },
   };
