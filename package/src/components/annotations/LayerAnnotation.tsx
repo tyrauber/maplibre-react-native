@@ -10,6 +10,7 @@ import type { LngLat } from "../../types/LngLat";
 import type { PressEventWithFeatures } from "../../types/PressEventWithFeatures";
 import { Animated } from "../../utils/animated/Animated";
 import { AnimatedPoint } from "../../utils/animated/AnimatedPoint";
+import { useEngineSupport } from "../map/engine/useEngineSupport";
 
 export interface LayerAnnotationProps extends BaseProps {
   id?: string;
@@ -37,6 +38,7 @@ export const LayerAnnotation = ({
   animationEasingFunction = Easing.linear,
   ...props
 }: LayerAnnotationProps) => {
+  useEngineSupport("<LayerAnnotation>");
   const [data, setData] = useState<Data>(() => {
     const point: GeoJSON.Point = {
       type: "Point",

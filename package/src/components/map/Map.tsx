@@ -683,6 +683,12 @@ export const Map = memo(
 
       return {
         ...otherProps,
+        // A native map nested in an engine's map is not that engine's child.
+        children: (
+          <MapControllerContext value={undefined}>
+            {otherProps.children}
+          </MapControllerContext>
+        ),
         ref: nativeRef,
         style: styles.flex1,
         mapStyle:

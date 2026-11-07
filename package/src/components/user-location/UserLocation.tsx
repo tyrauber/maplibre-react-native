@@ -6,6 +6,7 @@ import { useCurrentPosition } from "../../hooks/useCurrentPosition";
 import type { LngLat } from "../../types/LngLat";
 import { LayerAnnotation } from "../annotations/LayerAnnotation";
 import { Images } from "../images/Images";
+import { useEngineSupport } from "../map/engine/useEngineSupport";
 
 export interface UserLocationProps {
   /**
@@ -50,6 +51,8 @@ export const UserLocation = memo(
     children,
     onPress,
   }: UserLocationProps) => {
+    // First, so that an engine without it never asks for the position.
+    useEngineSupport("<UserLocation>");
     const currentPosition = useCurrentPosition({ minDisplacement });
 
     const lngLat: LngLat | undefined = useMemo(() => {

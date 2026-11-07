@@ -5,6 +5,7 @@ import {
   ImageSource,
   Images,
   Layer,
+  LayerAnnotation,
   Map,
   type MapProps,
   type MapRef,
@@ -13,10 +14,11 @@ import {
   RasterDEMSource,
   RasterSource,
   UnsupportedByEngineError,
+  UserLocation,
   VectorSource,
   ViewAnnotation,
 } from "@maplibre/maplibre-react-native";
-import { render } from "@testing-library/react-native";
+import { fireEvent, render } from "@testing-library/react-native";
 import { Component, createRef, type ReactElement, type ReactNode } from "react";
 import { View } from "react-native";
 
@@ -24,6 +26,12 @@ import { mockNativeFfi } from "../__mocks__/NativeFfi.mock";
 
 import { resetEngineWarnings } from "@/components/map/engine/engineProps";
 import { ffiEngine } from "@/ffi";
+import { useCurrentPosition } from "@/hooks/useCurrentPosition";
+
+// Under the native engine, <UserLocation> asks for the device's position.
+jest.mock("@/hooks/useCurrentPosition", () => ({
+  useCurrentPosition: jest.fn(() => undefined),
+}));
 
 const mockRendered: string[] = [];
 
@@ -158,6 +166,7 @@ let consoleWarn: jest.SpyInstance;
 beforeEach(() => {
   mockNativeFfi.reset();
   mockRendered.length = 0;
+  jest.mocked(useCurrentPosition).mockClear();
   resetEngineWarnings();
   // React reports each error that a boundary catches.
   consoleError = jest.spyOn(console, "error").mockImplementation(() => {});
@@ -327,6 +336,39 @@ describe("FFI engine children", () => {
 
     expectUnsupported(caught, "<GeoJSONSource>");
     expect(mockRendered).toEqual([]);
+  });
+
+  test("<UserLocation> throws before it asks for the position", async () => {
+    const { caught } = await renderFfi({}, <UserLocation />);
+
+    expectUnsupported(caught, "<UserLocation>");
+    expect(useCurrentPosition).not.toHaveBeenCalled();
+    expect(mockRendered).toEqual([]);
+  });
+
+  test("<LayerAnnotation> throws as itself", async () => {
+    const { caught } = await renderFfi(
+      {},
+      <LayerAnnotation id="a" lngLat={[0, 0]} />,
+    );
+
+    expectUnsupported(caught, "<LayerAnnotation>");
+    expect(mockRendered).toEqual([]);
+  });
+
+  test("a native map inside an FFI map renders the native camera", async () => {
+    const { result, caught } = await renderFfi(
+      {},
+      <Map mapStyle={MAP_STYLE} testID="inner">
+        <Camera zoom={2} />
+      </Map>,
+    );
+    await fireEvent(result.getByTestId("inner-view"), "layout", {
+      nativeEvent: { layout: { x: 0, y: 0, width: 100, height: 100 } },
+    });
+
+    expect(caught).toBeUndefined();
+    expect(mockRendered).toEqual(["Camera"]);
   });
 
   test("a plain view renders over the map", async () => {

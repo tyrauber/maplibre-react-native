@@ -153,8 +153,13 @@ export class FFIMapSession {
   }
 
   /**
-   * Calls `action` with the current map. Throws while no map is ready, which
-   * commands sent through the map's controller never see.
+   * Calls `action` with the current map. Throws while no map is ready.
+   *
+   * A command sent through the map's controller waits until the style has loaded,
+   * so it does not see this, with one exception. When Fast Refresh updates only
+   * the `FFIMapView` component, the session disposes and starts again, but the
+   * `<Map>` keeps its controller, which stays ready. A command sent before the
+   * new run's map is ready rejects with this error.
    */
   withMap<T>(action: (map: MapHandle) => T): T {
     const run = this.#run;
