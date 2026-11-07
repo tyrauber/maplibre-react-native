@@ -5,8 +5,6 @@ const {
   wrapWithReanimatedMetroConfig,
 } = require("react-native-reanimated/metro-config");
 
-const nativeFfi = require("./nativeFfi");
-
 const root = path.resolve(__dirname, "..", "..");
 
 const nativeFfiStub = path.join(
@@ -17,17 +15,32 @@ const nativeFfiStub = path.join(
   "nativeFfiStub.js",
 );
 
+// @maplibre/native-ffi-react-native, which the FFI example uses. An app that
+// does not install it, such as the Expo app, gets the stub instead.
+const nativeFfi = "@maplibre/native-ffi-react-native";
+
+/**
+ * @param {string} project
+ * @param {string} name
+ * @returns {boolean} Whether the project resolves the package `name`.
+ */
+function installs(project, name) {
+  try {
+    require.resolve(`${name}/package.json`, { paths: [project] });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /**
  * @param {import("metro-config").MetroConfig} config
  * @param {object} options
  * @param {string} options.project
- * @param {boolean} [options.nativeFfi] - Resolve @maplibre/native-ffi-react-native
- *   to the checkout, for an app that compiles it (see babel.shared.js). Other
- *   apps get the stub.
  * @returns {import("metro-config").MetroConfig}
  */
-function withMetroShared(config, { project, nativeFfi: useNativeFfi = false }) {
-  const ffi = useNativeFfi && nativeFfi.available;
+function withMetroShared(config, { project }) {
+  const hasNativeFfi = installs(project, nativeFfi);
   const metroConfig = wrapWithReanimatedMetroConfig(
     withMetroConfig(config, {
       root,
@@ -37,18 +50,9 @@ function withMetroShared(config, { project, nativeFfi: useNativeFfi = false }) {
   );
 
   const resolveRequest = metroConfig.resolver?.resolveRequest ?? null;
-  const resolve = (context, moduleName, platform) =>
-    (resolveRequest ?? context.resolveRequest)(context, moduleName, platform);
 
   return {
     ...metroConfig,
-    watchFolders: ffi
-      ? [
-          ...(metroConfig.watchFolders ?? []),
-          path.join(nativeFfi.binding, "src"),
-          path.join(nativeFfi.reactNative, "src"),
-        ]
-      : metroConfig.watchFolders,
     resolver: {
       ...metroConfig.resolver,
       extraNodeModules: {
@@ -56,32 +60,14 @@ function withMetroShared(config, { project, nativeFfi: useNativeFfi = false }) {
         "@": path.resolve(__dirname, "src"),
       },
       resolveRequest: (context, moduleName, platform) => {
-        if (moduleName === "@maplibre/native-ffi-react-native") {
-          return {
-            type: "sourceFile",
-            filePath: ffi ? nativeFfi.entry : nativeFfiStub,
-          };
+        if (moduleName === nativeFfi && !hasNativeFfi) {
+          return { type: "sourceFile", filePath: nativeFfiStub };
         }
-        if (ffi && moduleName === "@maplibre/native-ffi/hermes") {
-          return {
-            type: "sourceFile",
-            filePath: path.join(nativeFfi.binding, "src", "hermes.ts"),
-          };
-        }
-        // The checkout's own node_modules hold its React Native version. React
-        // Native, React and Babel's helpers come from the app instead.
-        if (
-          ffi &&
-          !moduleName.startsWith(".") &&
-          context.originModulePath.startsWith(nativeFfi.binding + path.sep)
-        ) {
-          return resolve(
-            { ...context, originModulePath: path.join(project, "index.js") },
-            moduleName,
-            platform,
-          );
-        }
-        return resolve(context, moduleName, platform);
+        return (resolveRequest ?? context.resolveRequest)(
+          context,
+          moduleName,
+          platform,
+        );
       },
     },
   };

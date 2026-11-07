@@ -14,6 +14,7 @@
   },
   "dependencies": {
     "@maplibre-react-native/examples": "workspace:*",
+    "@maplibre/native-ffi-react-native": "0.202611.0",
     "@react-native-masked-view/masked-view": "0.3.2",
     "react": "19.2.3",
     "react-native": "0.85.3",

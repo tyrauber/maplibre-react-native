@@ -6590,7 +6590,7 @@ __metadata:
     ts-node: "npm:10.9.2"
     typescript: "npm:5.9.3"
   peerDependencies:
-    "@maplibre/native-ffi-react-native": "*"
+    "@maplibre/native-ffi-react-native": ">=0.202611.0"
     "@types/geojson": ^7946.0.0
     "@types/react": ">=19.1.0"
     expo: ">=54.0.0"
@@ -6607,6 +6607,45 @@ __metadata:
       optional: true
   languageName: unknown
   linkType: soft
+
+"@maplibre/native-ffi-react-native@npm:0.202611.0":
+  version: 0.202611.0
+  resolution: "@maplibre/native-ffi-react-native@npm:0.202611.0"
+  dependencies:
+    "@maplibre/native-ffi": "npm:0.202611.0"
+  peerDependencies:
+    react: "*"
+    react-native: "*"
+  checksum: 10c0/392fb7ec1df9765f907fb411b48e90cccd8e01ffb2df16c827c9ab767e973ff472bc28cadf025686dee3755be3168cc1b40fbbecce477b5b7018eec647fc1c88
+  languageName: node
+  linkType: hard
+
+"@maplibre/native-ffi@npm:0.202611.0":
+  version: 0.202611.0
+  resolution: "@maplibre/native-ffi@npm:0.202611.0"
+  peerDependencies:
+    "@maplibre/native-ffi-metal": 0.202611.0
+    "@maplibre/native-ffi-opengl": 0.202611.0
+    "@maplibre/native-ffi-opengl-mingw": 0.202611.0
+    "@maplibre/native-ffi-vulkan": 0.202611.0
+    "@maplibre/native-ffi-vulkan-mingw": 0.202611.0
+    "@maplibre/native-ffi-webgpu": 0.202611.0
+  peerDependenciesMeta:
+    "@maplibre/native-ffi-metal":
+      optional: true
+    "@maplibre/native-ffi-opengl":
+      optional: true
+    "@maplibre/native-ffi-opengl-mingw":
+      optional: true
+    "@maplibre/native-ffi-vulkan":
+      optional: true
+    "@maplibre/native-ffi-vulkan-mingw":
+      optional: true
+    "@maplibre/native-ffi-webgpu":
+      optional: true
+  checksum: 10c0/b63278338233bc1a21afeb45f88f0e669007be5ce1aea9f5f4eb2c4ece17ad7247a272e9cebcd8a9dadae0883ab2bbe8a61a6ba9cc7f29b08d0edbc8073e6f85
+  languageName: node
+  linkType: hard
 
 "@mdx-js/mdx@npm:^3.0.0":
   version: 3.1.0
@@ -23917,6 +23956,7 @@ __metadata:
     "@babel/core": "npm:7.29.7"
     "@babel/plugin-transform-export-namespace-from": "npm:7.29.7"
     "@maplibre-react-native/examples": "workspace:*"
+    "@maplibre/native-ffi-react-native": "npm:0.202611.0"
     "@react-native-community/cli": "npm:20.1.3"
     "@react-native-community/cli-platform-android": "npm:20.1.3"
     "@react-native-community/cli-platform-ios": "npm:20.1.3"

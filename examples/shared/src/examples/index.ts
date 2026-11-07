@@ -95,5 +95,4 @@ export { CacheManagement } from "./OfflineManager/CacheManagement";
 export { StyleJSONInterop } from "./Styles/StyleJSONInterop";
 
 // Native FFI (experimental)
-export { NativeFFIMap } from "./NativeFFI/NativeFFIMap";
 export { NativeFFILibraryMap } from "./NativeFFI/NativeFFILibraryMap";

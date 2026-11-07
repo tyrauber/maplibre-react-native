@@ -1,4 +1,4 @@
-// @maplibre/native-ffi-react-native is not a dependency: Metro resolves it to a
-// maplibre-native-ffi checkout (see nativeFfi.js), which CI does not have. So
-// the type checker sees it as untyped until the package is on npm.
+// Only react-native-app installs @maplibre/native-ffi-react-native, and other
+// apps get Metro's stub (see metro.shared.js), so this workspace sees it as
+// untyped.
 declare module "@maplibre/native-ffi-react-native";
