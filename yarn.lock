@@ -6590,7 +6590,7 @@ __metadata:
     ts-node: "npm:10.9.2"
     typescript: "npm:5.9.3"
   peerDependencies:
-    "@maplibre/native-ffi-react-native": ">=0.202611.0 <0.202700.0"
+    "@maplibre/native-ffi-react-native": ^0.202611.0
     "@types/geojson": ^7946.0.0
     "@types/react": ">=19.1.0"
     expo: ">=54.0.0"

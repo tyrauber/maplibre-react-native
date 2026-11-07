@@ -151,7 +151,7 @@
     }
   },
   "peerDependencies": {
-    "@maplibre/native-ffi-react-native": ">=0.202611.0 <0.202700.0",
+    "@maplibre/native-ffi-react-native": "^0.202611.0",
     "@types/geojson": "^7946.0.0",
     "@types/react": ">=19.1.0",
     "expo": ">=54.0.0",
