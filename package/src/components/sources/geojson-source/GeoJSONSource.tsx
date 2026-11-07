@@ -22,6 +22,7 @@ import type { PressableSourceProps } from "../../../types/PressableSourceProps";
 import { cloneReactChildrenWithProps } from "../../../utils";
 import { findNodeHandle } from "../../../utils/findNodeHandle";
 import { getNativeFilter } from "../../../utils/getNativeFilter";
+import { useEngineSupport } from "../../map/engine/useEngineSupport";
 
 export type NativeGeoJSONSourceRef = Component<
   ComponentProps<typeof GeoJSONSourceNativeComponent>
@@ -270,6 +271,8 @@ export interface GeoJSONSourceProps extends BaseProps, PressableSourceProps {
  */
 export const GeoJSONSource = memo(
   ({ id, data, ref, ...props }: GeoJSONSourceProps) => {
+    useEngineSupport("<GeoJSONSource>");
+
     const nativeRef = useRef<NativeGeoJSONSourceRef>(null);
 
     const frozenId = useFrozenId(id);

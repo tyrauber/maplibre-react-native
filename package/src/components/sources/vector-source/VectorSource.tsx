@@ -19,6 +19,7 @@ import type { PressableSourceProps } from "../../../types/PressableSourceProps";
 import { cloneReactChildrenWithProps } from "../../../utils";
 import { findNodeHandle } from "../../../utils/findNodeHandle";
 import { getNativeFilter } from "../../../utils/getNativeFilter";
+import { useEngineSupport } from "../../map/engine/useEngineSupport";
 
 export interface VectorSourceRef {
   /**
@@ -201,6 +202,8 @@ export interface VectorSourceProps extends BaseProps, PressableSourceProps {
  * external file that conforms to the TileJSON specification.
  */
 export const VectorSource = memo(({ id, ref, ...props }: VectorSourceProps) => {
+  useEngineSupport("<VectorSource>");
+
   const nativeRef = useRef<
     Component<ComponentProps<typeof VectorSourceNativeComponent>> &
       ReactNativeElement

@@ -18,5 +18,12 @@ module.exports = {
         android: {},
       },
     },
+    // Experimental: @maplibre/native-ffi-react-native carries about 240 MB
+    // of native libraries, so the app links it only with MLRN_FFI=1.
+    ...(process.env.MLRN_FFI !== "1" && {
+      "@maplibre/native-ffi-react-native": {
+        platforms: { ios: null, android: null },
+      },
+    }),
   },
 };

@@ -20,6 +20,7 @@ import {
 import { transformStyle } from "../../utils/StyleValue";
 import { mergeStyleProps } from "../../utils/convertStyleSpec";
 import { getNativeFilter } from "../../utils/getNativeFilter";
+import { useEngineSupport } from "../map/engine/useEngineSupport";
 
 let deprecationWarned = false;
 
@@ -218,6 +219,8 @@ export type LayerProps =
  * ```
  */
 export const Layer = ({ id, ...props }: LayerProps) => {
+  useEngineSupport("<Layer>");
+
   const frozenId = useFrozenId(id);
 
   const nativeProps = useMemo(() => {

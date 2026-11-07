@@ -27,6 +27,12 @@ import {
 import AndroidTextureMapViewNativeComponent from "./AndroidTextureMapViewNativeComponent";
 import MapViewNativeComponent from "./MapViewNativeComponent";
 import NativeMapViewModule from "./NativeMapViewModule";
+import { MapControllerContext } from "./engine/MapControllerContext";
+import type { MapEngine } from "./engine/MapEngine";
+import {
+  useMapEngine,
+  useMapEngineController,
+} from "./engine/MapEngineProvider";
 import { LogManager } from "../../modules/log/LogManager";
 import type { BaseProps } from "../../types/BaseProps";
 import type { LngLat } from "../../types/LngLat";
@@ -536,6 +542,15 @@ export interface MapProps extends BaseProps, ViewProps {
   onDidFinishLoadingStyle?: (event: NativeSyntheticEvent<null>) => void;
 
   /**
+   * The engine that renders this map. Without this prop, the map uses the engine
+   * of the nearest `<MapEngineProvider>` or else the native view.
+   *
+   * Fixed for the mounted lifetime: to change it, remount the map with a new
+   * React key.
+   */
+  engine?: MapEngine;
+
+  /**
    * Ref to access Map methods.
    */
   ref?: Ref<MapRef>;
@@ -550,7 +565,10 @@ export interface MapProps extends BaseProps, ViewProps {
  * ```
  */
 export const Map = memo(
-  ({ androidView = "surface", style, ref, ...props }: MapProps) => {
+  ({ androidView, style, ref, engine, ...props }: MapProps) => {
+    const mapEngine = useMapEngine(engine);
+    const controller = useMapEngineController(mapEngine);
+
     const [isReady, setIsReady] = useState(false);
 
     const nativeRef = useRef<
@@ -558,7 +576,8 @@ export const Map = memo(
         ReactNativeElement
     >(null);
 
-    useImperativeHandle(ref, () => ({
+    // A non-native engine sets the ref itself.
+    useImperativeHandle(mapEngine ? undefined : ref, () => ({
       getCenter: () =>
         NativeMapViewModule.getCenter(findNodeHandle(nativeRef.current)),
 
@@ -664,6 +683,12 @@ export const Map = memo(
 
       return {
         ...otherProps,
+        // A native map nested in an engine's map is not that engine's child.
+        children: (
+          <MapControllerContext value={undefined}>
+            {otherProps.children}
+          </MapControllerContext>
+        ),
         ref: nativeRef,
         style: styles.flex1,
         mapStyle:
@@ -673,6 +698,18 @@ export const Map = memo(
           : undefined,
       };
     }, [props]);
+
+    if (mapEngine && controller) {
+      return (
+        <MapControllerContext value={controller}>
+          <mapEngine.MapView
+            props={{ ...props, androidView, style }}
+            controller={controller}
+            mapRef={ref}
+          />
+        </MapControllerContext>
+      );
+    }
 
     let map: ReactElement | null = null;
     if (isReady) {

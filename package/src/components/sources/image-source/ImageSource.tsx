@@ -9,6 +9,7 @@ import {
   isNumber,
   resolveImagePath,
 } from "../../../utils";
+import { useEngineSupport } from "../../map/engine/useEngineSupport";
 
 export interface ImageSourceProps extends BaseProps {
   /**
@@ -42,6 +43,8 @@ export interface ImageSourceProps extends BaseProps {
  * user zooms and rotates the map
  */
 export const ImageSource = memo(({ id, url, ...props }: ImageSourceProps) => {
+  useEngineSupport("<ImageSource>");
+
   const frozenId = useFrozenId(id);
 
   return (

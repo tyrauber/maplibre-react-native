@@ -4,6 +4,7 @@ import RasterDEMSourceNativeComponent from "./RasterDEMSourceNativeComponent";
 import { useFrozenId } from "../../../hooks/useFrozenId";
 import { type BaseProps } from "../../../types/BaseProps";
 import { cloneReactChildrenWithProps } from "../../../utils";
+import { useEngineSupport } from "../../map/engine/useEngineSupport";
 
 export interface RasterDEMSourceProps extends BaseProps {
   /**
@@ -70,6 +71,8 @@ export interface RasterDEMSourceProps extends BaseProps {
  */
 export const RasterDEMSource = memo(
   ({ id, ...props }: RasterDEMSourceProps) => {
+    useEngineSupport("<RasterDEMSource>");
+
     const frozenId = useFrozenId(id);
 
     return (

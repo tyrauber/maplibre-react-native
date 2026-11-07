@@ -23,6 +23,13 @@ export {
   Map,
 } from "./components/map/Map";
 
+export type { MapEngine } from "./components/map/engine/MapEngine";
+export { UnsupportedByEngineError } from "./components/map/engine/UnsupportedByEngineError";
+export {
+  type MapEngineProviderProps,
+  MapEngineProvider,
+} from "./components/map/engine/MapEngineProvider";
+
 export {
   type ViewAnnotationEvent,
   type NativeViewAnnotationRef,

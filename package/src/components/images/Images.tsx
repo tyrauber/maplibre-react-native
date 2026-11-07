@@ -11,6 +11,7 @@ import ImagesNativeComponent, {
 } from "./ImagesNativeComponent";
 import "./NativeImagesModule";
 import { type BaseProps } from "../../types/BaseProps";
+import { useEngineSupport } from "../map/engine/useEngineSupport";
 
 /**
  * An image source with optional SDF (Signed Distance Field) rendering mode.
@@ -77,6 +78,8 @@ export interface ImagesProps extends BaseProps {
  * symbol layers using the `iconImage` property.
  */
 export const Images = ({ testID, images, onImageMissing }: ImagesProps) => {
+  useEngineSupport("<Images>");
+
   const nativeImages = useMemo(() => {
     const result: Record<string, NativeImageEntry> = {};
 

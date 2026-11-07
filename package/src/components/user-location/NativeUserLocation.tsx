@@ -1,5 +1,6 @@
 import UserLocationNativeComponent from "./UserLocationNativeComponent";
 import type { BaseProps } from "../../types/BaseProps";
+import { useEngineSupport } from "../map/engine/useEngineSupport";
 
 interface NativeUserLocationProps extends BaseProps {
   /**
@@ -27,5 +28,7 @@ interface NativeUserLocationProps extends BaseProps {
 }
 
 export const NativeUserLocation = (props: NativeUserLocationProps) => {
+  useEngineSupport("<NativeUserLocation>");
+
   return <UserLocationNativeComponent {...props} />;
 };

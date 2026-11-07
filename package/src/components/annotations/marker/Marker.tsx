@@ -20,6 +20,7 @@ import { type Anchor, anchorToNative } from "../../../types/Anchor";
 import type { LngLat } from "../../../types/LngLat";
 import type { PixelPoint } from "../../../types/PixelPoint";
 import type { PressEvent } from "../../../types/PressEvent";
+import { useEngineSupport } from "../../map/engine/useEngineSupport";
 import {
   ViewAnnotation,
   type ViewAnnotationRef,
@@ -116,6 +117,8 @@ export const Marker = ({
   ref,
   ...props
 }: MarkerProps) => {
+  useEngineSupport("<Marker>");
+
   const nativeRef = useRef<NativeMarkerRef>(null);
   const viewAnnotationRef = useRef<ViewAnnotationRef>(null);
 

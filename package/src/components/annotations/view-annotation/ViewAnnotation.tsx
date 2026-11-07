@@ -25,6 +25,7 @@ import { type Anchor, anchorToNative } from "../../../types/Anchor";
 import type { LngLat } from "../../../types/LngLat";
 import type { PixelPoint } from "../../../types/PixelPoint";
 import type { PressEvent } from "../../../types/PressEvent";
+import { useEngineSupport } from "../../map/engine/useEngineSupport";
 import { Callout } from "../callout/Callout";
 
 const styles = StyleSheet.create({
@@ -176,6 +177,8 @@ export const ViewAnnotation = ({
   ref,
   ...props
 }: ViewAnnotationProps) => {
+  useEngineSupport("<ViewAnnotation>");
+
   const frozenId = useFrozenId(id);
   const nativeAnchor = anchorToNative(anchor);
   const nativeOffset = offset ? { x: offset[0], y: offset[1] } : undefined;

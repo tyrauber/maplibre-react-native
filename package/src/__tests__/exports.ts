@@ -14,6 +14,8 @@ describe("Package Exports", () => {
       "Camera",
       "UserLocation",
       "NativeUserLocation",
+      "MapEngineProvider",
+      "UnsupportedByEngineError",
 
       // Hooks
       "useCurrentPosition",

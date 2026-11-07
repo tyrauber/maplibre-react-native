@@ -18,6 +18,7 @@ import { type BaseProps } from "../../types/BaseProps";
 import type { LngLat } from "../../types/LngLat";
 import type { LngLatBounds } from "../../types/LngLatBounds";
 import type { ViewPadding } from "../../types/ViewPadding";
+import { useEngineComponent } from "../map/engine/useEngineSupport";
 
 /**
  * Camera viewport configuration: zoom, bearing, pitch, and padding.
@@ -277,8 +278,11 @@ export type CameraProps = BaseProps &
 /**
  * Controls the viewport of the Map.
  */
-export const Camera = memo(
-  ({
+export const Camera = memo((props: CameraProps) => {
+  // Under a non-native engine, the engine's own camera renders instead.
+  const EngineCamera = useEngineComponent<CameraProps>("<Camera>");
+
+  const {
     testID,
     initialViewState,
     minZoom,
@@ -288,57 +292,58 @@ export const Camera = memo(
     onTrackUserLocationChange,
     ref,
     ...stop
-  }: CameraProps) => {
-    const nativeRef = useRef<
-      Component<ComponentProps<typeof NativeCameraComponent>> &
-        ReactNativeElement
-    >(null);
+  } = props;
 
-    const setStop: CameraRef["setStop"] = (stop) => {
-      const nodeHandle = findNodeHandle(nativeRef.current);
+  const nativeRef = useRef<
+    Component<ComponentProps<typeof NativeCameraComponent>> & ReactNativeElement
+  >(null);
 
-      if (!nodeHandle) {
-        throw new Error(
-          "NativeCameraComponent ref is null, wait for the map being initialized",
-        );
-      }
+  const setStop: CameraRef["setStop"] = (stop) => {
+    const nodeHandle = findNodeHandle(nativeRef.current);
 
-      return NativeCameraModule.setStop(nodeHandle, stop);
-    };
+    if (!nodeHandle) {
+      throw new Error(
+        "NativeCameraComponent ref is null, wait for the map being initialized",
+      );
+    }
 
-    useImperativeHandle(ref, () => ({
-      setStop,
+    return NativeCameraModule.setStop(nodeHandle, stop);
+  };
 
-      jumpTo: ({ center, ...options }) =>
-        setStop({ ...options, center, duration: 0, easing: undefined }),
+  useImperativeHandle(EngineCamera ? undefined : ref, () => ({
+    setStop,
 
-      easeTo: ({ center, duration = 500, easing = "ease", ...options }) =>
-        setStop({ ...options, center, duration, easing }),
+    jumpTo: ({ center, ...options }) =>
+      setStop({ ...options, center, duration: 0, easing: undefined }),
 
-      flyTo: ({ center, duration = 2000, easing = "fly", ...options }) =>
-        setStop({ ...options, center, duration, easing }),
+    easeTo: ({ center, duration = 500, easing = "ease", ...options }) =>
+      setStop({ ...options, center, duration, easing }),
 
-      fitBounds: (
-        bounds,
-        { duration = 2000, easing = "fly", ...options } = {},
-      ) => setStop({ ...options, bounds, duration, easing }),
+    flyTo: ({ center, duration = 2000, easing = "fly", ...options }) =>
+      setStop({ ...options, center, duration, easing }),
 
-      zoomTo: (zoom, { duration = 500, easing = "ease", ...options } = {}) =>
-        setStop({ ...options, zoom, duration, easing }),
-    }));
+    fitBounds: (bounds, { duration = 2000, easing = "fly", ...options } = {}) =>
+      setStop({ ...options, bounds, duration, easing }),
 
-    return (
-      <NativeCameraComponent
-        ref={nativeRef}
-        testID={testID}
-        stop={stop}
-        initialViewState={initialViewState}
-        minZoom={minZoom}
-        maxZoom={maxZoom}
-        maxBounds={maxBounds}
-        trackUserLocation={trackUserLocation}
-        onTrackUserLocationChange={onTrackUserLocationChange}
-      />
-    );
-  },
-);
+    zoomTo: (zoom, { duration = 500, easing = "ease", ...options } = {}) =>
+      setStop({ ...options, zoom, duration, easing }),
+  }));
+
+  if (EngineCamera) {
+    return <EngineCamera {...props} />;
+  }
+
+  return (
+    <NativeCameraComponent
+      ref={nativeRef}
+      testID={testID}
+      stop={stop}
+      initialViewState={initialViewState}
+      minZoom={minZoom}
+      maxZoom={maxZoom}
+      maxBounds={maxBounds}
+      trackUserLocation={trackUserLocation}
+      onTrackUserLocationChange={onTrackUserLocationChange}
+    />
+  );
+});
