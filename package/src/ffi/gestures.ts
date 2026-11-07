@@ -1,18 +1,25 @@
 // Adapted from maplibre/maplibre-native-ffi examples/react-native/src/gestures.ts
-// at 616f9175. BSD-2-Clause: see LICENSE-maplibre-native-ffi in this folder.
-// The gesture math is unchanged; this copy adds the map's gesture toggles and
-// sends each delta through a callback instead of to a map.
+// at 1feb892d (v0.202611.0). BSD-2-Clause: see LICENSE-maplibre-native-ffi in
+// this folder. The gesture math is unchanged; this copy adds the map's gesture
+// toggles and sends each delta through a callback instead of to a map.
 
 // Gestures. A drag pans, two fingers pinch, rotate, and pan, and a double tap
-// zooms in.
+// zooms in. The map keeps moving after a drag or a pinch, until a touch stops
+// it.
 
 import {
   type GestureResponderEvent,
   PanResponder,
+  type PanResponderGestureState,
   type PanResponderInstance,
 } from "react-native";
 
-import { type CameraDelta, nativeFfi, type ScreenPoint } from "./nativeFfi";
+import {
+  type CameraDelta,
+  type GestureMomentum,
+  nativeFfi,
+  type ScreenPoint,
+} from "./nativeFfi";
 
 /** Which gestures are on. Each is on unless its `<Map>` prop is `false`. */
 export interface GestureToggles {
@@ -24,6 +31,17 @@ export interface GestureToggles {
 
 const doubleTapMs = 300;
 const tapSlop = 10;
+// PanResponder keeps the last move's velocity while a touch rests, so a release
+// this long after the last move starts no momentum.
+const releaseWindowMs = 100;
+
+// How far a pinch has zoomed and turned since the gesture began.
+interface PinchSample {
+  readonly time: number;
+  readonly zoom: number;
+  readonly bearing: number;
+  readonly anchor: ScreenPoint;
+}
 
 export interface MapGestures {
   readonly panHandlers: PanResponderInstance["panHandlers"];
@@ -47,6 +65,9 @@ export function mapGestures(apply: (delta: CameraDelta) => void): MapGestures {
   let previous = new Map<string, ScreenPoint>();
   let start: ScreenPoint | undefined;
   let moved = false;
+  let lastMove = 0;
+  // The pinch's recent samples, oldest first.
+  let pinch: PinchSample[] = [];
   let lastTap: { point: ScreenPoint; time: number } | undefined;
 
   const touches = (event: GestureResponderEvent) =>
@@ -57,19 +78,62 @@ export function mapGestures(apply: (delta: CameraDelta) => void): MapGestures {
       ]),
     );
 
+  // PanResponder reports how fast the touches moved in pixels per
+  // millisecond, and the pinch's rates come from its samples. Each part moves
+  // only while its gesture is on.
+  const momentum = (
+    time: number,
+    gesture: PanResponderGestureState,
+  ): GestureMomentum => {
+    if (!(time - lastMove <= releaseWindowMs)) return {};
+    const result: GestureMomentum = {};
+    if (on.dragPan) {
+      result.pan = {
+        velocity: { x: gesture.vx * 1000, y: gesture.vy * 1000 },
+      };
+    }
+    const first = pinch[0];
+    const last = pinch.at(-1);
+    if (
+      first === undefined ||
+      last === undefined ||
+      last.time === first.time ||
+      time - last.time > releaseWindowMs
+    ) {
+      return result;
+    }
+    const seconds = (last.time - first.time) / 1000;
+    if (on.touchZoom) {
+      result.zoom = {
+        velocity: (last.zoom - first.zoom) / seconds,
+        anchor: last.anchor,
+      };
+    }
+    if (on.touchRotate) {
+      result.bearing = {
+        velocity: (last.bearing - first.bearing) / seconds,
+        anchor: last.anchor,
+      };
+    }
+    return result;
+  };
+
   const responder = PanResponder.create({
     onStartShouldSetPanResponder: () => true,
     onMoveShouldSetPanResponder: () => true,
     onPanResponderTerminationRequest: () => false,
 
+    // Beginning a gesture also stops the last one's momentum.
     onPanResponderGrant: (event) => {
       previous = touches(event);
       start = previous.values().next().value;
       moved = false;
+      pinch = [];
       apply({ gesturePhase: GesturePhase.begin });
     },
 
     onPanResponderMove: (event) => {
+      const time = event.nativeEvent.timestamp;
       const current = touches(event);
       const pairs = [...current]
         .filter(([id]) => previous.has(id))
@@ -77,6 +141,7 @@ export function mapGestures(apply: (delta: CameraDelta) => void): MapGestures {
       previous = current;
       const [first, second] = pairs;
       if (first === undefined) return;
+      lastMove = time;
       const [before, after] = first;
       if (start !== undefined && distance(start, after) > tapSlop) moved = true;
 
@@ -103,13 +168,15 @@ export function mapGestures(apply: (delta: CameraDelta) => void): MapGestures {
         x: otherAfter.x - after.x,
         y: otherAfter.y - after.y,
       };
-      const scale =
+      const ratio =
         Math.hypot(spanAfter.x, spanAfter.y) /
         Math.hypot(spanBefore.x, spanBefore.y);
-      const turn =
+      const scale = Number.isFinite(ratio) && ratio > 0 ? ratio : 1;
+      const bearing = -wrapDegrees(
         (Math.atan2(spanAfter.y, spanAfter.x) -
           Math.atan2(spanBefore.y, spanBefore.x)) *
-        (180 / Math.PI);
+          (180 / Math.PI),
+      );
       const delta: CameraDelta = {
         anchor: midAfter,
         gesturePhase: GesturePhase.update,
@@ -120,20 +187,33 @@ export function mapGestures(apply: (delta: CameraDelta) => void): MapGestures {
           y: midAfter.y - midBefore.y,
         };
       }
-      if (on.touchZoom) {
-        delta.scale = Number.isFinite(scale) && scale > 0 ? scale : 1;
-      }
-      if (on.touchRotate) delta.bearing = -wrapDegrees(turn);
+      if (on.touchZoom) delta.scale = scale;
+      if (on.touchRotate) delta.bearing = bearing;
       apply(delta);
+      const last = pinch.at(-1);
+      pinch = pinch.filter((sample) => time - sample.time <= releaseWindowMs);
+      pinch.push({
+        time,
+        zoom: (last?.zoom ?? 0) + Math.log2(scale),
+        bearing: (last?.bearing ?? 0) + bearing,
+        anchor: midAfter,
+      });
     },
 
-    onPanResponderRelease: (event) => {
+    onPanResponderRelease: (event, gesture) => {
+      if (moved) {
+        apply({
+          momentum: momentum(event.nativeEvent.timestamp, gesture),
+          gesturePhase: GesturePhase.end,
+        });
+        return;
+      }
       apply({ gesturePhase: GesturePhase.end });
       const point = {
         x: event.nativeEvent.locationX,
         y: event.nativeEvent.locationY,
       };
-      if (moved || !on.doubleTapZoom) return;
+      if (!on.doubleTapZoom) return;
       const now = Date.now();
       if (
         lastTap !== undefined &&

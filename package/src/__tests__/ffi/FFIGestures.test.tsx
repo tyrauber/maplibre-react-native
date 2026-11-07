@@ -68,7 +68,11 @@ async function renderMap(props: Partial<MapProps> = {}, { ready = true } = {}) {
 
 type Touch = [id: number, x: number, y: number];
 
-function event(touches: Touch[], at?: [number, number]) {
+// The time of the last event, in milliseconds. Each event comes 10 ms after
+// the one before it, as React Native's timestamps would.
+let clock = 0;
+
+function event(touches: Touch[], at?: [number, number], timestamp = clock) {
   const [first] = touches;
   return {
     nativeEvent: {
@@ -79,20 +83,43 @@ function event(touches: Touch[], at?: [number, number]) {
       })),
       locationX: at?.[0] ?? first?.[1] ?? 0,
       locationY: at?.[1] ?? first?.[2] ?? 0,
+      timestamp,
     },
   } as unknown as GestureResponderEvent;
 }
 
 const state = {} as never;
 
-/** Runs one gesture: the first touches start it, each later set moves it. */
-function gesture(...steps: Touch[][]) {
+interface Release {
+  /** How fast the touches moved at release, in pixels per millisecond. */
+  vx?: number;
+  vy?: number;
+  /** How long the touches rest after the last move before they lift. */
+  restMs?: number;
+}
+
+/**
+ * Runs one gesture: the first touches start it, each later set moves it, and
+ * the touches lift as `release` says.
+ */
+function fling({ vx = 0, vy = 0, restMs = 10 }: Release, ...steps: Touch[][]) {
   const [first, ...moves] = steps;
-  config!.onPanResponderGrant!(event(first!), state);
-  for (const touches of moves)
-    config!.onPanResponderMove!(event(touches), state);
+  config!.onPanResponderGrant!(event(first!, undefined, (clock += 10)), state);
+  for (const touches of moves) {
+    config!.onPanResponderMove!(
+      event(touches, undefined, (clock += 10)),
+      state,
+    );
+  }
   const last = steps[steps.length - 1]!;
-  config!.onPanResponderRelease!(event([], [last[0]![1], last[0]![2]]), state);
+  config!.onPanResponderRelease!(
+    event([], [last[0]![1], last[0]![2]], (clock += restMs)),
+    { vx, vy } as never,
+  );
+}
+
+function gesture(...steps: Touch[][]) {
+  fling({}, ...steps);
 }
 
 function tap(x: number, y: number) {
@@ -106,6 +133,24 @@ const deltas = () =>
 
 const moves = () => deltas().filter((delta) => delta.gesturePhase === UPDATE);
 
+const ends = () => deltas().filter((delta) => delta.gesturePhase === END);
+
+/** Two fingers that spread from 100 to 200 to 400 pixels apart. */
+const PINCH: Touch[][] = [
+  [
+    [1, 100, 150],
+    [2, 200, 150],
+  ],
+  [
+    [1, 50, 150],
+    [2, 250, 150],
+  ],
+  [
+    [1, -50, 150],
+    [2, 350, 150],
+  ],
+];
+
 describe("FFI map gestures", () => {
   test("a drag pans by the finger's offset", async () => {
     await renderMap();
@@ -116,7 +161,10 @@ describe("FFI map gestures", () => {
       { gesturePhase: BEGIN },
       { offset: { x: 20, y: 5 }, gesturePhase: UPDATE },
       { offset: { x: 20, y: 10 }, gesturePhase: UPDATE },
-      { gesturePhase: END },
+      {
+        momentum: { pan: { velocity: { x: 0, y: 0 } } },
+        gesturePhase: END,
+      },
     ]);
   });
 
@@ -172,6 +220,88 @@ describe("FFI map gestures", () => {
       scale: 2,
       anchor: { x: 62, y: 81 },
       animation: { durationMs: 300 },
+    });
+  });
+
+  describe("momentum", () => {
+    test("a fling keeps the map moving at the release's speed", async () => {
+      await renderMap();
+
+      fling({ vx: 0.5, vy: -0.25 }, [[1, 10, 10]], [[1, 30, 15]]);
+
+      expect(ends()).toEqual([
+        {
+          momentum: { pan: { velocity: { x: 500, y: -250 } } },
+          gesturePhase: END,
+        },
+      ]);
+    });
+
+    test("a release after the touch rests starts no momentum", async () => {
+      await renderMap();
+
+      fling({ vx: 0.5, vy: 0.5, restMs: 150 }, [[1, 10, 10]], [[1, 30, 15]]);
+
+      expect(ends()).toEqual([{ momentum: {}, gesturePhase: END }]);
+    });
+
+    test("a pinch keeps zooming at its rate, about its last midpoint", async () => {
+      await renderMap();
+
+      fling({}, ...PINCH);
+
+      // The span doubles from the first move to the second, 10 ms later.
+      const [end] = ends();
+      const momentum = end!.momentum as Record<string, Record<string, unknown>>;
+      expect(momentum.zoom).toEqual({
+        velocity: expect.closeTo(100),
+        anchor: { x: 150, y: 150 },
+      });
+      expect(momentum.bearing).toEqual({
+        velocity: expect.closeTo(0),
+        anchor: { x: 150, y: 150 },
+      });
+    });
+
+    test("a pinch released after it rests starts no momentum", async () => {
+      await renderMap();
+
+      fling({ restMs: 150 }, ...PINCH);
+
+      expect(ends()).toEqual([{ momentum: {}, gesturePhase: END }]);
+    });
+
+    test("a tap ends without momentum", async () => {
+      await renderMap();
+
+      tap(60, 80);
+
+      expect(ends()).toEqual([{ gesturePhase: END }]);
+    });
+
+    test("a touch stops the glide", async () => {
+      await renderMap();
+
+      fling({ vx: 1 }, [[1, 10, 10]], [[1, 30, 15]]);
+      fling({}, [[1, 40, 40]]);
+
+      expect(
+        deltas().filter((delta) => delta.gesturePhase === BEGIN),
+      ).toHaveLength(2);
+    });
+
+    test.each([
+      ["dragPan", "pan"],
+      ["touchZoom", "zoom"],
+      ["touchRotate", "bearing"],
+    ])("%s={false} drops the %s momentum", async (prop, part) => {
+      await renderMap({ [prop]: false });
+
+      fling({ vx: 1, vy: 1 }, ...PINCH);
+
+      const [end] = ends();
+      expect(end!.momentum).not.toHaveProperty(part);
+      expect(Object.keys(end!.momentum as object)).toHaveLength(2);
     });
   });
 

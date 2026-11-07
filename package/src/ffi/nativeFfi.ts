@@ -1,10 +1,11 @@
 /**
- * The subset of `@maplibre/native-ffi-react-native` that the FFI engine uses.
+ * The subset of `@maplibre/native-ffi-react-native` that the FFI engine uses,
+ * as of 0.202611.0.
  *
- * The package is not on npm yet, so the type checker cannot resolve it. These
- * local interfaces describe only what this module calls. They are not module
- * declarations, so they will not clash with the package's own types once it is
- * installed.
+ * The package is an optional peer, so the library cannot import its types.
+ * These local interfaces describe only what this module calls. They are not
+ * module declarations, so they do not clash with the package's own types in an
+ * app that installs it.
  *
  * Loading the package installs its binding, and throws when the app does not
  * link it. Only the `/ffi` entry point reaches this module.
@@ -93,12 +94,32 @@ export interface ScreenPoint {
   y: number;
 }
 
+/** How a gesture's zoom or bearing keeps changing after release. */
+export interface AnchoredMomentum {
+  /** Zoom levels per second for zoom, and degrees per second for bearing. */
+  velocity?: number;
+  anchor?: ScreenPoint;
+}
+
+/**
+ * How a gesture keeps moving the camera after the touches lift. A part moves
+ * only when its velocity is set, and the core slows it on each frame.
+ */
+export interface GestureMomentum {
+  /** In logical pixels per second. */
+  pan?: { velocity?: ScreenPoint };
+  zoom?: AnchoredMomentum;
+  bearing?: AnchoredMomentum;
+}
+
 /** A change to the camera, relative to where it is. */
 export interface CameraDelta {
   offset?: ScreenPoint;
   scale?: number;
   bearing?: number;
   anchor?: ScreenPoint;
+  /** Only a delta in the end phase carries it. */
+  momentum?: GestureMomentum;
   animation?: AnimationOptions;
   gesturePhase?: number;
 }
